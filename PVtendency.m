@@ -58,11 +58,11 @@ bdot_adv = -g/rho0*rho_adv;
 u = U;
 
 %%% define udot
-udot = TOTUTEND:
+udot = TOTUTEND;
 udot_diss = Um_diss;
 udot_adv = Um_Advec;
 udot_cori = Um_cori;
-udot_p = UmdPhiX;
+udot_p = Um_dPhiX;
 
 %%% term1 
 A = mean(f0*bdot,2,'omitnan');    % mean in y
