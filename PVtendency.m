@@ -39,25 +39,33 @@ addpath /Users/Kayliec23/Desktop/analysis
 %%%%%%%%%%%%%%%%%%%%%%%%%% define b and u and their components %%%%%%%%%%%%%%%%%%%%%%%%
  
 %%% define b and its components
-b = buoyancy(S,T);
+% find alpha and beta
+S = squeeze(nanmean(SS(1,:,:,:),4));
+T = squeeze(nanmean(TT(1,:,:,1),4));
+g = 9.81;
+dPT = 1e-3;
+dSP = 1e-3;
+alpha = - (densjmd95(S,T+0.5*dPT,0) - densjmd95(S,T-0.5*dPT,0))./densjmd95(S,T,0)/dPT;
+beta = (densjmd95(S+0.5*dSP,T,0) - densjmd95(S-0.5*dSP,T,0))./densjmd95(S,T,0)/dSP;
+b = g.*(alpha.*T-beta.*S);
 bdot = (b(:,:,:,2:Nt)-b(:,:,:,1:Nt-1)) ./ t1hour; 
 
-
 % % calculate rho_diff
-% bDiff = buoyancy(SdiffX,THdiffX);
+bDiff = g.*(alpha.*THdiffX-beta.*SdiffX);
+bDiff_dot = (bDiff(:,:,:,2:Nt)-bDiff(:,:,:,1:Nt-1)) ./ t1hour; 
 % 
 % % calculate rho_adv
-% bAdv = buoyancy(SadvX,THadvX);
-% 
+bAdv = g.*(alpha.*THdiffX-beta.*SdiffX);
+bAdv_dot = (bAdv(:,:,:,2:Nt)-bAdv(:,:,:,1:Nt-1)) ./ t1hour; 
+
 % % calculate rho_adv
-% bdot = buoyancy(TOTSTEND,TOTTTEND);
+btend = g.*(alpha.*TOTTTEND-beta.*TOTSTEND);
 
 %%% define u and its components
 u = U;
 
 %%% define udot
 udot = TOTUTEND/86400;
-%Udiss = Um_Diss + Um_ImplD;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%% calculate qdot mean terms %%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,17 +127,6 @@ function BB = interp_center_y(AA,Ny)
   AA(:,Ny,:,:) = 2*AA(:,Ny-1,:,:)-AA(:,Ny-2,:,:);    % interpolate in y for boundary point
   AA = ( AA(:,1:Ny-1,:,:) + AA(:,2:Ny,:,:) ) / 2;    % recenter
   BB = AA;
-end
-
-function b = buoyancy(SS,TT)
-    S = squeeze(SS(1,:,:,1));
-    T = squeeze(TT(1,:,:,1));
-    g = 9.81;
-    dPT = 1e-3;
-    dSP = 1e-3;
-    alpha = - (densjmd95(S,T+0.5*dPT,0) - densjmd95(S,T-0.5*dPT,0))./densjmd95(S,T,0)/dPT;
-    beta = (densjmd95(S+0.5*dSP,T,0) - densjmd95(S-0.5*dSP,T,0))./densjmd95(S,T,0)/dSP;
-    b = g.*(alpha.*T-beta.*S);
 end
 
 
