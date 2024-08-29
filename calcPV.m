@@ -134,35 +134,35 @@ Uzz(:,:,2:Nr-1,:) = 0.5*(U(:,:,1:Nr-2,1:Nt) - 2*U(:,:,2:Nr-1,1:Nt) + U(:,:,3:Nr,
 Uzz(:,:,1,:) = 2*Uzz(:,:,2,:) - Uzz(:,:,3,:); Uzz(:,:,Nr,:) = 2*Uzz(:,:,Nr-1,:) - Uzz(:,:,Nr-2,:); 
 Fz = viscAr.*Uzz;
 
-F = Fz + Fh; 
+F = (Fz + Fh); 
 
 dbdy_(:,1:Ny-1,:,:) = (dbdy(:,1:Ny-1,:,:) + dbdy(:,2:Ny,:,:))./2; dbdy_(:,Ny,:,:) = 2*dbdy_(:,Ny-1,:,:) - dbdy_(:,Ny-2,:,:);
 dbdz_(:,:,2:Nr,:) = (dbdz(:,:,2:Nr,:)+dbdz(:,:,1:Nr-1,:))./2; dbdz_(:,:,1,:) = 2*dbdz_(:,:,2,:) - dbdz(:,:,3,:); 
 
 qFj = dbdz_.*F;
 qFk = -dbdy_.*F;
-qFjy(:,1:Ny-1,:,:) = diff(qFj,1,2)./dy; qFjy(:,Ny,:,:) = 2*qFjy(:,Ny-1,:,:) - qFjy(:,Ny-2,:,:); 
-qFjy(:,1:Ny-1,:,:) = (qFjy(:,2:Ny,:,:) + qFjy(:,1:Ny-1,:,:))./2; qFjy(:,Ny,:,:) = 2*qFjy(:,Ny-1,:,:) - qFjy(:,Ny-2,:,:); 
+%qFjy(:,1:Ny-1,:,:) = diff(qFj,1,2)./dy; qFjy(:,Ny,:,:) = 2*qFjy(:,Ny-1,:,:) - qFjy(:,Ny-2,:,:); 
+%qFjy(:,1:Ny-1,:,:) = (qFjy(:,2:Ny,:,:) + qFjy(:,1:Ny-1,:,:))./2; qFjy(:,Ny,:,:) = 2*qFjy(:,Ny-1,:,:) - qFjy(:,Ny-2,:,:); 
+qFjy(:,2:Ny,:,:) = diff(qFj,1,2)./dy; qFjy(:,1,:,:) = 2*qFjy(:,2,:,:) - qFjy(:,3,:,:); 
+qFjy(:,2:Ny,:,:) = (qFjy(:,2:Ny,:,:) + qFjy(:,1:Ny-1,:,:))./2; qFjy(:,1,:,:) = 2*qFjy(:,2,:,:) - qFjy(:,3,:,:); 
 qFkz(:,:,2:Nr,:) = (qFk(:,:,1:Nr-1,:) - qFk(:,:,2:Nr,:))./dz; qFkz(:,:,1,:) = 2*qFkz(:,:,2,:) - qFkz(:,:,3,:);
 qFkz(:,:,2:Nr,:) = (qFkz(:,:,2:Nr,:) + qFkz(:,:,1:Nr-1,:))./2; qFkz(:,:,1,:) = 2*qFkz(:,:,2,:) - qFkz(:,:,3,:);
 
-qF = qFkz + qFjy; 
+qF = -(qFkz + qFjy); 
 
 
 % diabatic
+
 % Bdot = fwFlux.*L./rhoi./dy./dz;
 % Bdot_dy(:,1:Ny-1,:,:) = diff(Bdot,1,1); Bdot_dy(:,Ny,:,:) = 2*Bdot_dy(:,Ny-1,:,:) - Bdot_dy(:,Ny-2,:,:); 
 % Bdot_dz(:,:,2:Nr,:) = (Bdot(:,:,1:Nr-1,:) - Bdot(:,:,2:Nr,:))./dz; Bdot_dz(:,:,1,:) = 2*Bdot_dz(:,:,2,:) - Bdot_dz(:,:,3,:);
-% 
 
+Kdbdz = KPPdiffT(:,:,:,1:Nt).*dbdz;
 
-
-
-
-dbdzz(:,:,2:Nr,:) = (dbdz(:,:,1:Nr-1,:) - dbdz(:,:,2:Nr,:))./dz; dbdzz(:,:,1,:) = 2*dbdzz(:,:,2,:) - dbdzz(:,:,3,:);
+Kdbdzz(:,:,2:Nr,:) = (Kdbdz(:,:,1:Nr-1,:) - Kdbdz(:,:,2:Nr,:))./dz; Kdbdzz(:,:,1,:) = 2*Kdbdzz(:,:,2,:) - Kdbdzz(:,:,3,:);
 %dbdzzz(:,:,2:Nr,:) = (dbdzz(:,:,1:Nr-1,:) - dbdzz(:,:,2:Nr,:))./dz; dbdzzz(:,:,1,:) = 2*dbdzzz(:,:,2,:) - dbdzzz(:,:,3,:);
 
-qBk = (f0-dUdy).*KPPdiffT(:,:,:,1:Nt).*dbdzz;
+qBk = (f0-dUdy).*Kdbdzz;
 
 qB(:,:,2:Nr,:) = (qBk(:,:,1:Nr-1,:) - qBk(:,:,2:Nr,:))./dz; qB(:,:,1,:) = 2*qB(:,:,2,:) - qB(:,:,3,:);
 
@@ -704,7 +704,17 @@ close(vid)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plotting PV budget %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-rbmap = b2r(0,5e-13);
+
+% dqt = cumsum(qt,4).*dt; qt0 = qt(:,:,:,1);
+% dqAdv = cumsum(qAdv,4).*dt; dqAdv0 = qAdv(:,:,:,1);
+% dqB = cumsum(qB,4).*dt; dqB0 = qB(:,:,:,1);
+% dqF = cumsum(qF,4).*dt; dqF0 = qF(:,:,:,1);
+qt_sum_anom = sum_anom(qt,dt);
+qAdv_sum_anom = sum_anom(qAdv,dt);
+qF_sum_anom = sum_anom(qF,dt);
+qB_sum_anom = sum_anom(qB,dt);
+q_sum_anom = sum_anom(q,dt);
+
 
 [YY,ZZ] = meshgrid(yy,zz);
 scrsz = get(0,'ScreenSize');
@@ -716,22 +726,23 @@ set(handle,'Position',framepos);
 clf;
 set(gcf,'Color','w');
 xlim_min = 0; xlim_max = 40;
-ylim_min = -550; ylim_max = 0;
+ylim_min = -500; ylim_max = 0;
 curve1 = icetopo;
 curve2 = zeros(1,length(curve1));
 x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
 x2 = [x1, fliplr(x1)];
 inBetween = [curve1, fliplr(curve2)];
 c_ice = [0.9 0.9 0.9];
+rbmap = b2r(0,5e-13);
+t1 = 20; t2 = 60;
 
-t1 = 5; t2 = 60;
 
-sb1 = subplot(4,2,1); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t1))'); shading flat; 
+sb1 = subtightplot(5,2,1,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(q(:,:,:,t1))'); shading flat; 
 %colorbar;
-caxis([-1 1]*1e-13);
+caxis([-1 1]*1e-8);
 xlim([0 40]);
-title('q_t')
+title({['t =\,', num2str(t1), '\,days'],'$q$'},'interpreter','latex')
 %cmocean('balance','pivot',0);
 colormap(sb1,'redblue');
 set(gca,'Box','on','linewidth',2)
@@ -739,12 +750,15 @@ xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 fill(x2, inBetween, c_ice,'EdgeColor','none');
 set(gca,'fontsize',fontsize)
-sb2 = subplot(4,2,2); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t2))'); shading flat; 
+xticklabels([]);
+ylabel('z (m)','interpreter','latex');
+set(gca,'TickLabelInterpreter','latex')
+sb2 = subtightplot(5,2,2,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(q(:,:,:,t2))'); shading flat; 
 colorbar;
-caxis([-1 1]*1e-13);
+caxis([-1 1]*1e-8);
 xlim([0 40]);
-title('q_t')
+title({['t =\,', num2str(t2), '\,days'],'$q$'},'interpreter','latex')
 colormap(sb2,'redblue');  %cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
@@ -752,85 +766,133 @@ ylim([ylim_min ylim_max])
 yticklabels([]);
 fill(x2, inBetween, c_ice,'EdgeColor','none');
 set(gca,'fontsize',fontsize)
+xticklabels([]);
+set(gca,'TickLabelInterpreter','latex')
 
-sb3 = subplot(4,2,3); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qAdv_neg(:,:,:,t1))'); shading flat; 
+sb3 = subtightplot(5,2,3,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t1))'); shading flat; 
 %colorbar;
-caxis([0 1]*1e-13);
+caxis([-5 5]*1e-9);
 xlim([0 40]);
-title('$-\nabla \cdot (\mathbf{u} q)$','interpreter','latex')
-colormap(sb3,rbmap); %cmocean('balance','pivot',0);
+title('$<q_t>$','interpreter','latex')
+%cmocean('balance','pivot',0);
+colormap(sb3,'redblue');
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 fill(x2, inBetween, c_ice,'EdgeColor','none');
-set(gca,'fontsize',fontsize)
-sb4 = subplot(4,2,4); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qAdv_neg(:,:,:,t2))'); shading flat; 
+set(gca,'fontsize',fontsize);
+xticklabels([]);
+set(gca,'TickLabelInterpreter','latex')
+ylabel('z (m)','interpreter','latex');
+sb4 = subtightplot(5,2,4,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t2))'); shading flat; 
 colorbar;
-caxis([0 1]*1e-13);
+caxis([-5 5]*1e-9);
 xlim([0 40]);
-title('$-\nabla \cdot (\mathbf{u} q)$','interpreter','latex')
-colormap(sb4,rbmap); % cmocean('balance','pivot',0);
+title('$<q_t>$','interpreter','latex')
+colormap(sb4,'redblue');  %cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 yticklabels([]);
 fill(x2, inBetween, c_ice,'EdgeColor','none');
-set(gca,'fontsize',fontsize)
+xticklabels([]); 
+set(gca,'TickLabelInterpreter','latex');
 
-
-sb5 = subplot(4,2,5); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qF_neg(:,:,:,t1))'); shading flat; 
+sb5 = subtightplot(5,2,5,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qAdv_sum_anom(:,:,:,t1))'); shading flat; 
 %colorbar;
-caxis([0 1]*1e-13);
+caxis([0 5]*1e-9);
 xlim([0 40]);
-title('$\nabla \cdot (\nabla b \times \mathbf{F})$','interpreter','latex')
+title('$-\nabla \cdot (\mathbf{u} q)$','interpreter','latex')
 colormap(sb5,rbmap); %cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 fill(x2, inBetween, c_ice,'EdgeColor','none');
-set(gca,'fontsize',fontsize)
-sb6 = subplot(4,2,6); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qF_neg(:,:,:,t2))'); shading flat; 
-%colorbar;
-caxis([0 1]*1e-13);
+set(gca,'fontsize',fontsize);
+set(gca,'TickLabelInterpreter','latex')
+xticklabels([]);
+ylabel('z (m)','interpreter','latex');
+sb6 = subtightplot(5,2,6,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qAdv_sum_anom(:,:,:,t2))'); shading flat; 
+colorbar;
+caxis([0 5]*1e-9);
 xlim([0 40]);
-title('$\nabla \cdot (\nabla b \times \mathbf{F})$','interpreter','latex')
-colormap(sb6,rbmap); %cmocean('balance','pivot',0);
+title('$-\nabla \cdot (\mathbf{u} q)$','interpreter','latex')
+colormap(sb6,rbmap); % cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 yticklabels([]);
 fill(x2, inBetween, c_ice,'EdgeColor','none');
-set(gca,'fontsize',fontsize)
+set(gca,'fontsize',fontsize);
+xticklabels([]);
+set(gca,'TickLabelInterpreter','latex')
 
-sb7 = subplot(4,2,7); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qB_neg(:,:,:,t1))'); shading flat; 
+
+sb7 = subtightplot(5,2,7,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t1))'); shading flat; 
 %colorbar;
-caxis([0 1]*1e-13);
+caxis([0 5]*1e-9);
 xlim([0 40]);
-title('$\nabla \cdot (\omega_a \frac{Db}{Dt})$','interpreter','latex')
+title({'$\nabla \cdot (\nabla b \times \mathbf{F})$'},'interpreter','latex')
 colormap(sb7,rbmap); %cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 fill(x2, inBetween, c_ice,'EdgeColor','none');
-set(gca,'fontsize',fontsize)
-sb8 = subplot(4,2,8); hold on;
-pcolor(YY/m1km,ZZ,squeeze(qB_neg(:,:,:,t2))'); shading flat; 
+set(gca,'fontsize',fontsize);
+xticklabels([]);
+set(gca,'TickLabelInterpreter','latex')
+ylabel('z (m)','interpreter','latex');
+sb8 = subtightplot(5,2,8,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t2))'); shading flat; 
 %colorbar;
-caxis([0 1]*1e-13);
+caxis([0 5]*1e-9);
 xlim([0 40]);
-title('$\nabla \cdot (\omega_a \frac{Db}{Dt})$','interpreter','latex')
+title('$\nabla \cdot (\nabla b \times \mathbf{F})$','interpreter','latex')
 colormap(sb8,rbmap); %cmocean('balance','pivot',0);
 set(gca,'Box','on','linewidth',2)
 xlim([xlim_min xlim_max])
 ylim([ylim_min ylim_max])
 yticklabels([]);
 fill(x2, inBetween, c_ice,'EdgeColor','none');
+set(gca,'fontsize',fontsize);
+xticklabels([]);
+set(gca,'TickLabelInterpreter','latex')
+
+sb9 = subtightplot(5,2,9,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t1))'); shading flat; 
+%colorbar;
+caxis([0 5]*1e-9);
+xlim([0 40]);
+title('$\nabla \cdot (\omega_a \frac{Db}{Dt})$','interpreter','latex')
+colormap(sb9,rbmap); %cmocean('balance','pivot',0);
+set(gca,'Box','on','linewidth',2)
+xlim([xlim_min xlim_max])
+ylim([ylim_min ylim_max])
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+set(gca,'fontsize',fontsize);
+xlabel('y (km)','interpreter','latex');
+ylabel('z (m)','interpreter','latex');
+set(gca,'TickLabelInterpreter','latex')
+sb10 = subtightplot(5,2,10,[0.025 0.02]); hold on;
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t2))'); shading flat; 
+%colorbar;
+caxis([0 5]*1e-9);
+xlim([0 40]);
+title('$\nabla \cdot (\omega_a \frac{Db}{Dt})$','interpreter','latex')
+colormap(sb10,rbmap); %cmocean('balance','pivot',0);
+set(gca,'Box','on','linewidth',2)
+xlim([xlim_min xlim_max])
+ylim([ylim_min ylim_max])
+yticklabels([]);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
 set(gca,'fontsize',fontsize)
+xlabel('y (km)','interpreter','latex');
+set(gca,'TickLabelInterpreter','latex')
 
 % subplot(5,2,9); hold on;
 % pcolor(YY/m1km,ZZ,squeeze(qB_fComp_neg(:,:,:,t1))'); shading flat; 
@@ -869,7 +931,11 @@ set(gca,'fontsize',fontsize)
 
 
 
-
+function Asum_anom = sum_anom(A,dt)
+    Asum = cumsum(A,4).*dt;
+    A0 = A(:,:,:,1);
+    Asum_anom = Asum - A0;
+end
 
 
 function Aneg = negVal(A)
