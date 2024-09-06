@@ -101,15 +101,15 @@ switch component
     case 'tot'
         udot_comp = udot;
         bdot_comp = bdot;
-%     case 'adv'
-%         udot_comp = Um_Advec;
-%         bdot_comp = bdot_adv;
-%     case 'diff'
-%         udot_comp = udot_diff;
-%         bdot_comp = bdot_diff;
-%     case 'visc'
-%         udot_comp = Udot_visc;
-%         bdot_comp = bdot_visc;
+     case 'adv'
+         udot_comp = Um_Advec;
+         bdot_comp = bdot;
+     case 'diss'
+         udot_comp = Um_Diss + Um_ImplD;
+         bdot_comp = bdot;
+     case 'visc'
+         udot_comp = VISCx_Um + VISCy_Um + VISrE_Um + VISrI_Um;
+         bdot_comp = bdot;
 end
 
 
@@ -153,6 +153,19 @@ B = diff(bdot_comp,1,2);    % diff in y
 B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
 B = interp_yz(B);    % interpolate in z and y
 term5 = (A.*B)./dy./dz;
+
+
+switch component
+    case 'tot'
+        qdot = term1 + term2 + term3 + term4 + term5;
+     case 'adv'
+        qAdv = term1 + term2 + term3 + term4 + term5;
+     case 'diss'
+        qDiss = term1 + term2 + term3 + term4 + term5;
+     case 'visc'
+        qVisc = term1 + term2 + term3 + term4 + term5;
+end
+
 
 %%% qdot
 qdot = term1 + term2 + term3 + term4 + term5;
