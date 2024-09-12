@@ -14,6 +14,7 @@
 %%% TOTUTEND - Tendency of Zonal Component of Velocity
 %%% TOTTTEND - Tendency of Potential Temperature
 %%% TOTSTEND - Tendency of Salinity
+addpath /Users/Kayliec23/Desktop/analysis
 
 % Constants
 Nx = length(delX);
@@ -32,6 +33,7 @@ rho0 = 1027;
 t1min = 60;
 t1hour = 60*t1min;
 t1day = 24*t1hour;
+dt = t1day;
 [YY,ZZ] = meshgrid(yy,zz);
 
 % addpath /Users/Kayliec23/Desktop/analysis
@@ -50,31 +52,26 @@ dSP = 1e-3;
 alpha = - (densjmd95(SS,TT+0.5*dPT,0) - densjmd95(SS,TT-0.5*dPT,0))./densjmd95(SS,TT,0)/dPT;
 beta = (densjmd95(SS+0.5*dSP,TT,0) - densjmd95(SS-0.5*dSP,TT,0))./densjmd95(SS,TT,0)/dSP;
 
-
 %%% calculate b
 for n = 1:Nt
-    b_(1,:,:,n) = g.*(alpha.*squeeze(T(1,:,:,n)) - beta.*squeeze(S(1,:,:,n))); % - ...
-    %g.*(alpha.*squeeze(T(1,:,:,1)) - beta.*squeeze(S(1,:,:,1)));
+    b_(1,:,:,n) = g.*(alpha.*squeeze(T(1,:,:,n)) - beta.*squeeze(S(1,:,:,n))) - g.*(alpha.*squeeze(T(1,:,:,1)) - beta.*squeeze(S(1,:,:,1)));
 end
 %b = (b(:,:,:,1:Nt-1)+b(:,:,:,2:Nt))./2;
-b_ = iceNaN(b_,Nx,Ny,Nr,icetopo,zz);
+b = iceNaN(b_,Nx,Ny,Nr,icetopo,zz);
 b = (b_(:,:,:,1:Nt-1)+b_(:,:,:,2:Nt))/2;
-bt = diff(b,1,4)./t1hour;
+bt = diff(b,1,4)./dt;
+
 % calculate bdot_tot
-[bdot bdotdot] = buoyancy(TOTSTEND./t1day,TOTTTEND./t1day,alpha,beta,icetopo,zz);
+[bdot bdotdot] = buoyancy(TOTSTEND./t1day,TOTTTEND./t1day,alpha,beta,icetopo,zz,dt);
 bdot = iceNaN(bdot,Nx,Ny,Nr,icetopo,zz);
 
-
-% % calculate rho_diff
-% [bDIFFx bDIFFx_dot] = buoyancy(DFxE_SLT,DFxE_TH,alpha,beta,icetopo,zz);
-% [bDIFFy bDIFFy_dot] = buoyancy(DFyE_SLT,DFyE_TH,alpha,beta,icetopo,zz);
-% [bDIFFrR bDIFFrE_dot] = buoyancy(DFrE_SLT,DFrE_TH,alpha,beta,icetopo,zz);
-% [bDIFFrI bDIFFrI_dot] = buoyancy(DFrI_SLT,DFrI_TH,alpha,beta,icetopo,zz);
-%
-% % calculate rho_adv
-% [bADVx bADVx_dot] = buoyancy(ADVx_SLT,ADVx_TH,alpha,beta,icetopo,zz);
-% [bADVy bADVy_dot] = buoyancy(ADVy_SLT,ADVy_TH,alpha,beta,icetopo,zz);
-% [bADVr bADVr_dot] = buoyancy(ADVr_SLT,ADVr_TH,alpha,beta,icetopo,zz);
+%%
+% calculate bAdv
+% calculate bdot_tot
+[bAdvy bAdvydot] = buoyancy(ADVy_S./(dx*dy*dz),ADVy_T./(dx*dy*dz),alpha,beta,icetopo,zz,dt);
+[bAdvz bAdvzdot] = buoyancy(ADVr_S./(dx*dy*dz),ADVr_T./(dx*dy*dz),alpha,beta,icetopo,zz,dt);
+bAdv = bAdvy + bAdvz;
+bAdv = iceNaN(bAdv,Nx,Ny,Nr,icetopo,zz);
 
 
 %%
@@ -84,32 +81,29 @@ bdot = iceNaN(bdot,Nx,Ny,Nr,icetopo,zz);
 
 %%% define u and its components
 u = (U(:,:,:,1:Nt-1)+U(:,:,:,2:Nt))/2;
-% U_adv = ADVx_Um + ADVy_Um + ADVrE_Um;
-% U_visc = VISCx_Um + VISCy_Um + VISrE_Um + VISrI_Um;
-% Udot_visc = (U_visc(:,:,:,2:Nt)-U_visc(:,:,:,1:Nt-1)) ./ t1hour;
 
 %%% define udot and its components
 udot = TOTUTEND./t1day;
 udot = iceNaN(udot,Nx,Ny,Nr,icetopo,zz);
-% Udot_Diss = (Um_Diss(:,:,:,2:Nt)-Um_Diss(:,:,:,1:Nt-1)) ./ t1hour;
-% Udot_ImplD = (Um_Impl(:,:,:,2:Nt)-Um_ImplD(:,:,:,1:Nt-1)) ./ t1hour;
-% U_diff = U_Diss + U_ImplD;
 
 component = 'tot';
 
 switch component
-    case 'tot'
+    case 'tend'
         udot_comp = udot;
         bdot_comp = bdot;
-     case 'adv'
-         udot_comp = Um_Advec;
-         bdot_comp = bdot;
-     case 'diss'
-         udot_comp = Um_Diss + Um_ImplD;
-         bdot_comp = bdot;
-     case 'visc'
-         udot_comp = VISCx_Um + VISCy_Um + VISrE_Um + VISrI_Um;
-         bdot_comp = bdot;
+    case 'adv'
+        udot_comp = Um_Advec;
+        bdot_comp = bAdv;
+    case 'diss'
+        udot_comp = Um_Diss + Um_ImplD + VISrI./dx./dy./dz;
+        bdot_comp = bdot;
+%     case 'visc'
+%         udot_comp = VISCx_Um + VISCy_Um + VISrE_Um + VISrE_Um;
+%         bdot_comp = bdot;
+    case 'tot'
+        udot_comp = udot + Um_Advec;
+        bdot_comp = bdot + bAdv;
 end
 
 
@@ -154,27 +148,574 @@ B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
 B = interp_yz(B);    % interpolate in z and y
 term5 = (A.*B)./dy./dz;
 
-
+%%% qdot
 switch component
-    case 'tot'
+    case 'tendency'
         qdot = term1 + term2 + term3 + term4 + term5;
-     case 'adv'
+        qF = term2 + term4;
+        qB = term1 + term3 + term5; 
+    case 'adv'
         qAdv = term1 + term2 + term3 + term4 + term5;
-     case 'diss'
+    case 'diss'
         qDiss = term1 + term2 + term3 + term4 + term5;
-     case 'visc'
+    case 'visc'
         qVisc = term1 + term2 + term3 + term4 + term5;
+    case 'tot'
+        Dq = term1 + term2 + term3 + term4 + term5;
 end
 
-
-%%% qdot
-qdot = term1 + term2 + term3 + term4 + term5;
-
+%%
 %%% Calculate Q and take time derivative
-Q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0);
-Q = iceNaN(Q,Nx,Ny,Nr,icetopo,zz);
-Qt = diff(Q,1,4)./t1hour;
+q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0);
+q = iceNaN(q,Nx,Ny,Nr,icetopo,zz);
+qt = diff(q,1,4)./dt;
 
+%%
+qdot_sum = cumsum(qdot,4).*dt; qdot_sum_anom = qdot_sum - qdot(:,:,:,1);
+qt_sum = cumsum(qt,4).*dt; qt_sum_anom = qt_sum - qt(:,:,:,1);
+q_sum = cumsum(q,4).*dt; q_sum_anom = q_sum - q(:,:,:,1);
+fq_sum = cumsum(f0*q,4).*dt; fq_sum_anom = fq_sum - fq_sum(:,:,:,1);
+qB_sum = cumsum(qB,4).*dt; qB_sum_anom = qB_sum - qB(:,:,:,1);
+qF_sum = cumsum(qF,4).*dt; qF_sum_anom = qF_sum - qF(:,:,:,1);
+qt_res_sum =  cumsum(qt-qdot,4);
+qB_sum_anom_pos = posVal(qB_sum_anom);
+qF_sum_anom_pos = posVal(qF_sum_anom);
+qt_sum_anom_pos = posVal(qt_sum_anom);
+%%
+qB_sum_anom_posPV = posPVval(qB_sum_anom,qt_sum_anom);
+qF_sum_anom_posPV = posPVval(qF_sum_anom,qt_sum_anom);
+qt_sum_anom_posPV = posPVval(qt_sum_anom,qt_sum_anom);
+qB_sum_anom_posPV_pos = posVal(qB_sum_anom_posPV);
+qF_sum_anom_posPV_pos = posVal(qF_sum_anom_posPV);
+qt_sum_anom_posPV_pos = posVal(qt_sum_anom_posPV);
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Figures fq components %%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+addpath /Users/Kayliec23/Desktop/plottingKit/
+
+scrsz = get(0,'ScreenSize');
+fontsize = 22;
+
+framepos = [0 scrsz(4)/2 scrsz(3) scrsz(4)];
+plotloc = [0.17 0.18 0.62 0.7];
+handle = figure(30);
+set(handle,'Position',framepos);
+clf;
+set(gcf,'Color','w');
+t1 = 2; t2 = 3; t3 = 20; t4 = 60;
+gap = [0.02 0.015];
+clim = [-1 1]*1e-9;
+x_lim = [15 25];
+y_lim = [-330 -200]; 
+curve1 = icetopo;
+curve2 = zeros(1,length(curve1));
+x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
+x2 = [x1, fliplr(x1)];
+inBetween = [curve1, fliplr(curve2)];
+c_ice = [0.9 0.9 0.9];
+
+% qt
+h1 = subtightplot(4,4,1,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t1))'); shading flat;
+mymap = colormap('redblue');
+colormap(h1,mymap)
+caxis(clim*1e-3)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+%title('$q_t$','interpreter','latex')
+title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+txt={['(a)']};
+    h_annot=annotation('textbox',...
+        [0.078  0.81 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+    txt={['q_t']};
+    h_annot=annotation('textbox',...
+        [0.231  0.68 1 0.11],...
+        'String',txt,...
+        'FontSize',28,...
+        'FontName','latex',...
+        'EdgeColor','none',...
+        'LineWidth',1.5,...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+h2 = subtightplot(4,4,2,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t2))'); shading flat;
+mymap = colormap('redblue');
+colormap(h2,mymap)
+caxis(clim*1e-3)
+hold on;
+set(gca,'fontsize',fontsize)
+title(['t = ',num2str(t2),' day'],'interpreter','latex','fontsize',28)
+xticklabels([])
+yticklabels([])
+%title('$q_t$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(b)']};
+    h_annot=annotation('textbox',...
+        [0.29  0.81 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+h3 = subtightplot(4,4,3,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t3))'); shading flat;
+mymap = colormap('redblue');
+colormap(h3,mymap)
+caxis(clim*1e-3)
+hold on;
+set(gca,'fontsize',fontsize)
+title(['t = ',num2str(t3),' day'],'interpreter','latex','fontsize',28)
+xticklabels([])
+yticklabels([])
+%title('$q_t$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(c)']};
+    h_annot=annotation('textbox',...
+        [0.51  0.81 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+h4 = subtightplot(4,4,4,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t4))'); shading flat;  
+colorbar('FontSize',20,'FontName','latex','linewidth',1.5,'position',[0.93    0.7350    0.0116    0.19000]);
+mymap = colormap('redblue');
+colormap(h4,mymap)
+caxis(clim*1e-3)
+hold on;
+set(gca,'fontsize',fontsize)
+title(['t = ',num2str(t4),' day'],'interpreter','latex','fontsize',28)
+xticklabels([])
+yticklabels([])
+%title('$q_t$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(d)']};
+    h_annot=annotation('textbox',...
+        [0.72  0.81 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+% qt_sum
+h5 = subtightplot(4,4,5,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t1))'); shading flat; 
+mymap = colormap('redblue');
+colormap(h5,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xticklabels([])
+ylabel('z (m)','interpreter','latex')
+%title('$\int q_t$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+txt={['(e)']};
+    h_annot=annotation('textbox',...
+        [0.078  0.59 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+    txt={['\intq_t']};
+    h_annot=annotation('textbox',...
+        [0.231  0.46 1 0.11],...
+        'String',txt,...
+        'FontSize',28,...
+        'FontName','latex',...
+        'EdgeColor','none',...
+        'LineWidth',1.5,...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+h6 = subtightplot(4,4,6,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t2))'); shading flat; 
+mymap = colormap('redblue');
+colormap(h6,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xticklabels([])
+yticklabels([])
+%title('$<q_t>$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(f)']};
+    h_annot=annotation('textbox',...
+        [0.3  0.59 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+h7 = subtightplot(4,4,7,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t3))'); shading flat;  
+mymap = colormap('redblue');
+colormap(h7,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xticklabels([])
+yticklabels([])
+%title('$<q_t>$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(g)']};
+    h_annot=annotation('textbox',...
+        [0.51  0.59 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h8 = subtightplot(4,4,8,gap);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t4))'); shading flat;  
+colorbar('FontSize',20,'FontName','latex','linewidth',1.5,'position',[0.93    0.074    0.0116    0.6204]);
+mymap = colormap('redblue');
+colormap(h8,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xticklabels([])
+yticklabels([])
+%title('$<q_t>$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(h)']};
+    h_annot=annotation('textbox',...
+        [0.72  0.59 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+% qF_sum
+
+h9 = subtightplot(4,4,9,gap);
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom_posPV(:,:,:,t1))'); shading flat;
+mymap = colormap('redblue');
+colormap(h9,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+%title('$\int qF$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+txt={['(i)']};
+    h_annot=annotation('textbox',...
+        [0.078  0.37 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+    txt={['\intq_F']};
+    h_annot=annotation('textbox',...
+        [0.231  0.24 1 0.11],...
+        'String',txt,...
+        'FontSize',28,...
+        'FontName','latex',...
+        'EdgeColor','none',...
+        'LineWidth',1.5,...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h10 = subtightplot(4,4,10,gap);
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom_posPV(:,:,:,t2))'); shading flat;
+mymap = colormap('redblue');
+colormap(h10,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+yticklabels([])
+xticklabels([])
+%title('$\int qF $','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(j)']};
+    h_annot=annotation('textbox',...
+        [0.3  0.37 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h11 = subtightplot(4,4,11,gap);
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom_posPV(:,:,:,t3))'); shading flat;
+mymap = colormap('redblue');
+colormap(h11,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+yticklabels([])
+xticklabels([])
+%title('$\int qF $','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(k)']};
+    h_annot=annotation('textbox',...
+        [0.51  0.37 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h12 = subtightplot(4,4,12,gap);
+pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom_posPV(:,:,:,t4))'); shading flat;
+mymap = colormap('redblue');
+colormap(h12,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+yticklabels([])
+xticklabels([])
+%title('$\int qF $','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+txt={['(l)']};
+    h_annot=annotation('textbox',...
+        [0.72  0.37 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+% qB_sum
+h13 = subtightplot(4,4,13,gap);
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom_posPV(:,:,:,t1))'); shading flat;
+mymap = colormap('redblue');
+colormap(h13,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xlabel('y (km)','interpreter','latex')
+%title('$\int qB$','interpreter','latex')
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+txt={['(m)']};
+    h_annot=annotation('textbox',...
+        [0.078  0.15 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+    txt={['\intq_B']};
+    h_annot=annotation('textbox',...
+        [0.231  0.02 1 0.11],...
+        'String',txt,...
+        'FontSize',28,...
+        'FontName','latex',...
+        'EdgeColor','none',...
+        'LineWidth',1.5,...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+    
+h14 = subtightplot(4,4,14,gap);
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom_posPV(:,:,:,t2))'); shading flat;
+mymap = colormap('redblue');
+colormap(h14,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xlabel('y (km)','interpreter','latex')
+% title('$<qB>$','interpreter','latex')
+yticklabels([])
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+ax.FontSize = fontsize;
+txt={['(n)']};
+    h_annot=annotation('textbox',...
+        [0.3  0.15 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h15 = subtightplot(4,4,15,gap);
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom_posPV(:,:,:,t3))'); shading flat;
+mymap = colormap('redblue');
+colormap(h15,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xlabel('y (km)','interpreter','latex')
+%title('$<qB>$','interpreter','latex')
+yticklabels([])
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+ax.FontSize = fontsize;
+txt={['(o)']};
+    h_annot=annotation('textbox',...
+        [0.51  0.15 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+h16 = subtightplot(4,4,16,gap);
+pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom_posPV(:,:,:,t4))'); shading flat;
+mymap = colormap('redblue');
+colormap(h16,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+xlabel('y (km)','interpreter','latex')
+%title('$<qB>$','interpreter','latex')
+yticklabels([])
+xlim(x_lim);
+ylim(y_lim);
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca; 
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+txt={['(p)']};
+    h_annot=annotation('textbox',...
+        [0.72  0.15 1 0.11],...
+        'String',txt,...
+        'FontSize',20,...
+        'FontName','latex',...
+        'FontWeight','Bold',...
+        'EdgeColor','none',...
+        'BackgroundColor','none',...
+        'FitBoxToText','on');
+
+
+
+
+%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% Calculate plume means %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -205,172 +746,68 @@ term4_mean = plume_mean(term4,Nd,Ns,icetopo,zz,dz);
 term5_mean = plume_mean(term5,Nd,Ns,icetopo,zz,dz);
 qbc_dot_mean = term4_mean+term5_mean;
 bdot_mean = plume_mean(bdot,Nd,Ns,icetopo,zz,dz);
-Qt_mean = plume_mean(Qt,Nd,Ns,icetopo,zz,dz);
-Q_mean = plume_mean(Q,Nd,Ns,icetopo,zz,dz);
+qt_mean = plume_mean(qt,Nd,Ns,icetopo,zz,dz);
+q_mean = plume_mean(q,Nd,Ns,icetopo,zz,dz);
+qB_mean = plume_mean(qB,Nd,Ns,icetopo,zz,dz);
+qF_mean = plume_mean(qF,Nd,Ns,icetopo,zz,dz);
+qF_sum_anom_mean = plume_mean(qF_sum_anom,Nd,Ns,icetopo,zz,dz);
+qB_sum_anom_mean = plume_mean(qB_sum_anom,Nd,Ns,icetopo,zz,dz);
+qt_sum_anom_mean = plume_mean(qt_sum_anom,Nd,Ns,icetopo,zz,dz);
+qdot_sum_anom_mean = plume_mean(qdot_sum_anom,Nd,Ns,icetopo,zz,dz);
 
-% %%
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Kinetic Energy %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
-% Uc = U; Vc = NaN(Nx,Ny,Nr,Nt); Wc = NaN(Nx,Ny,Nr,Nt);
-% Vc(:,1:Ny-1,:,:) = (V(:,1:Ny-1,:,:)+V(:,2:Ny,:,:))/2; Vc(:,Ny,:,:) = 2*Vc(:,Ny-1,:,:) - Vc(:,Ny-2,:,:);
-% Wc(:,:,2:Nr,:) = (W(:,:,2:Nr,:)+W(:,:,1:Nr-1,:))/2; Wc(:,:,1,:) = 2*Wc(:,:,2,:) - Wc(:,:,3,:);
-% Uc = iceNaN(Uc,Nx,Ny,Nr,icetopo,zz); Vc = iceNaN(Vc,Nx,Ny,Nr,icetopo,zz); Wc = iceNaN(Wc,Nx,Ny,Nr,icetopo,zz);
-% KE = Uc.^2 + Vc.^2 + Wc.^2 ;
-% 
-% % advective flux terms
-% vKE = Vc.*KE;
-% wKE = Wc.*KE;
-% vKEdy = diff(vKE,1,2)./dy; 
-% vKEdy = (vKEdy(:,:,2:Nr,:) + vKEdy(:,:,1:Nr-1,:))/2;
-% vKEdy = interp_yz(vKEdy);
-% wKEdz = (wKE(:,:,[1:Nr-1],1:Nt) - wKE(:,:,[2:Nr],1:Nt))./dz;
-% wKEdz = (wKEdz(:,2:Ny,:,:) + wKEdz(:,1:Ny-1,:,:))/2;
-% wKEdz = interp_yz(wKEdz);
-% 
-% KEadvFlux = -(vKEdy + wKEdz); 
-% 
-% % pressure flux terms
-% P = NaN(Nx,Ny,Nr,Nt); P(:,:,:,1:Nt-1) = PH + PNH(:,:,:,1:Nt-1); P(:,:,:,Nt) = 2*P(:,:,:,Nt-1) - P(:,:,:,Nt-2);
-% vP = Vc.*P;
-% wP = Wc.*P;
-% vPdy = 1/rho0*diff(vP,1,2)./dy; 
-% vPdy = (vPdy(:,:,2:Nr,:) + vPdy(:,:,1:Nr-1,:))/2;
-% vPdy = interp_yz(vPdy);
-% wPdz = 1/rho0*(wP(:,:,[1:Nr-1],1:Nt) - wP(:,:,[2:Nr],1:Nt))./dz;
-% wPdz = (wPdz(:,2:Ny,:,:) + wPdz(:,1:Ny-1,:,:))/2;
-% wPdz = interp_yz(wPdz);
-% 
-% KEpFlux = - (vPdy + wPdz);
-% 
-% % viscous flux terms 
-% KEdy2(:,2:Ny-1,:,:) = (KE(:,3:Ny,:,:) - 2*KE(:,2:Ny-1,:,:) + KE(:,1:Ny-2,:,:))./(dy^2); % second derivative
-% KEdy2(:,1,:,:) = 2*KEdy2(:,2,:,:) - KEdy2(:,3,:,:); KEdy2(:,Ny,:,:) = 2*KEdy2(:,Ny-1,:,:) - KEdy2(:,Ny-2,:,:); % adding boundaries
-% KEdy2 = (KEdy2(:,2:Ny,:,:) + KEdy2(:,1:Ny-1,:,:))/2; KEdy2 = (KEdy2(:,:,2:Nr,:) + KEdy2(:,:,1:Nr-1,:))/2; 
-% KEdy2 = interp_yz(KEdy2); 
-% KEviscFlux_h = viscA4/(dy^2).*KEdy2;
-% KEdz2(:,:,2:Nr-1,:) = (KE(:,:,1:Nr-2,:) - 2*KE(:,:,2:Nr-1,:,:) + KE(:,:,3:Nr,:))./(dz^2);
-% KEdz2(:,:,1,:) = 2*KEdz2(:,:,2,:) - KEdz2(:,:,3,:); KEdz2(:,:,Nr,:) = 2*KEdz2(:,:,Nr-1,:) - KEdz2(:,:,Nr-2,:);
-% KEdz2 = (KEdz2(:,2:Ny,:,:) + KEdz2(:,1:Ny-1,:,:))/2; KEdz2 = (KEdz2(:,:,2:Nr,:) + KEdz2(:,:,1:Nr-1,:))/2;
-% KEdz2 = interp_yz(KEdz2);
-% KEviscFlux_z = viscAr*KEdz2;
-% 
-% KEviscFlux = - (KEviscFlux_z + KEviscFlux_h);
-% 
-% % buoyancy source
-% wb = Wc.*b_;
-% 
-% % viscous dissipation terms
-% dUdy = NaN(Nx,Ny,Nr,Nt); dUdy(:,1:Ny-1,:,:) = diff(U(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
-% dUdy(:,:,2:Nr,:) = (dUdy(:,:,[2:Nr],:)+dUdy(:,:,[1:Nr-1],:))/2; % average to top right corner
-% dUdy(:,:,1,:) = 2*dUdy(:,:,2,:)-dUdy(:,:,3,:); dUdy(:,Ny,:,:) = 2*dUdy(:,Ny-1,:,:)-dUdy(:,Ny-2,:,:);
-% dVdy = NaN(Nx,Ny,Nr,Nt); dVdy(:,1:Ny-1,:,:) = diff(Vc(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
-% dVdy(:,:,2:Nr,:) = (dVdy(:,:,[2:Nr],:)+dVdy(:,:,[1:Nr-1],:))/2; % average to top right corner
-% dVdy(:,:,1,:) = 2*dVdy(:,:,2,:)-dVdy(:,:,3,:); dVdy(:,Ny,:,:) = 2*dVdy(:,Ny-1,:,:)-dVdy(:,Ny-2,:,:);
-% dWdy = NaN(Nx,Ny,Nr,Nt); dWdy(:,1:Ny-1,:,:) = diff(Wc(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
-% dWdy(:,:,2:Nr,:) = (dWdy(:,:,[2:Nr],:)+dWdy(:,:,[1:Nr-1],:))/2; % average to top right corner
-% dWdy(:,:,1,:) = 2*dWdy(:,:,2,:)-dWdy(:,:,3,:); dWdy(:,Ny,:,:) = 2*dWdy(:,Ny-1,:,:)-dWdy(:,Ny-2,:,:);
-% KEdiss_h = viscA4/(dy^2)*(dUdy.^2 + dVdy.^2 + dWdy.^2);
-% 
-% dUdz = NaN(Nx,Ny,Nr,Nt); dUdz(:,:,2:Nr,:) = (U(:,:,[1:Nr-1],1:Nt) - U(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
-% dUdz(:,1:Ny-1,:,:) = (dUdz(:,[2:Ny],:,:)+dUdz(:,[1:Ny-1],:,:))/2; % average to top right corner
-% dUdz(:,:,1,:) = 2*dUdz(:,:,2,:)-dUdz(:,:,3,:); dUdz(:,Ny,:,:) = 2*dUdz(:,Ny-1,:,:)-dUdz(:,Ny-2,:,:); % add boundaries
-% dVdz = NaN(Nx,Ny,Nr,Nt); dVdz(:,:,2:Nr,:) = (Vc(:,:,[1:Nr-1],1:Nt) - Vc(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
-% dVdz(:,1:Ny-1,:,:) = (dVdz(:,[2:Ny],:,:)+dVdz(:,[1:Ny-1],:,:))/2; % average to top right corner
-% dVdz(:,:,1,:) = 2*dVdz(:,:,2,:)-dVdz(:,:,3,:); dVdz(:,Ny,:,:) = 2*dVdz(:,Ny-1,:,:)-dVdz(:,Ny-2,:,:); % add boundaries
-% dWdz = NaN(Nx,Ny,Nr,Nt); dWdz(:,:,2:Nr,:) = (Wc(:,:,[1:Nr-1],1:Nt) - Wc(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
-% dWdz(:,1:Ny-1,:,:) = (dWdz(:,[2:Ny],:,:)+dWdz(:,[1:Ny-1],:,:))/2; % average to top right corner
-% dWdz(:,:,1,:) = 2*dWdz(:,:,2,:)-dWdz(:,:,3,:); dWdz(:,Ny,:,:) = 2*dWdz(:,Ny-1,:,:)-dWdz(:,Ny-2,:,:); % add boundaries
-% KEdiss_z = viscAr*(dUdz.^2 + dVdz.^2 + dWdz.^2);
-% 
-% KEdiss = KEdiss_h + KEdiss_z;
-% 
-% % KE tendency
-% KEt(:,:,:,1:Nt-1) = (KE(:,:,:,2:Nt) - KE(:,:,:,1:Nt-1))/t1hour;
-% KEt(:,:,:,Nt) = 2*KEt(:,:,:,Nt-1) - KEt(:,:,:,Nt-2);
-% 
-% % KEt_tot
-% KEt_tot = KEadvFlux + KEpFlux + KEviscFlux + KEdiss;
-% 
-% % residual
-% res = KEt - KEt_tot;
-% 
-% 
-% figure;
-% hold on;
-% plot(squeeze(nansum(nansum(KEadvFlux(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(KEpFlux(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(KEviscFlux(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(wb(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(KEdiss(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(KEt(:,:,:,360),1),3)));
-% plot(squeeze(nansum(nansum(KEt_tot(:,:,:,360),1),3)));
-% legend('adv','p','visc','wb','diss','KEt','KEt_tot')
 
-%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Enstrophy %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% Total, mean and perturbation enstrophies
-E = plume_mean(0.5*Q.^2,Nd,Ns,icetopo,zz,dz);
-E_mean = 0.5*Q_mean.^2; 
+E = plume_mean(0.5*q.^2,Nd,Ns,icetopo,zz,dz);
+E_mean = 0.5*q_mean.^2; 
 E_pert = E - E_mean;
 
 %%% Mean and perturbation enstrophy tendencies
-Et_mean = diff(E_mean,1,2)./t1hour;
-Et_pert = diff(E_pert,1,2)./t1hour;
+Et_mean = diff(E_mean,1,2)./dt;
+Et_pert = diff(E_pert,1,2)./dt;
 
 %%% Total, mean and perturbation terms in the enstrophy budget
 
-Eqdot = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*qdot,Nd,Ns,icetopo,zz,dz);
-Eqdot_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*qdot_mean;
+Eqdot = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*qdot,Nd,Ns,icetopo,zz,dz);
+Eqdot_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*qdot_mean;
 Eqdot_pert = Eqdot - Eqdot_mean;
 
-Eterm1 = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*term1,Nd,Ns,icetopo,zz,dz);
-Eterm1_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*term1_mean;
+EqB = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*qB,Nd,Ns,icetopo,zz,dz);
+EqB_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*qB_mean;
+EqB_pert = EqB - EqB_mean;
+
+EqF = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*qF,Nd,Ns,icetopo,zz,dz);
+EqF_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*qF_mean;
+EqF_pert = EqF - EqF_mean;
+
+Eterm1 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term1,Nd,Ns,icetopo,zz,dz);
+Eterm1_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term1_mean;
 Eterm1_pert = Eterm1 - Eterm1_mean;
 
-Eterm2 = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*term2,Nd,Ns,icetopo,zz,dz);
-Eterm2_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*term2_mean;
+Eterm2 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term2,Nd,Ns,icetopo,zz,dz);
+Eterm2_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term2_mean;
 Eterm2_pert = Eterm2 - Eterm2_mean;
 
-Eterm3 = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*term3,Nd,Ns,icetopo,zz,dz);
-Eterm3_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*term3_mean;
+Eterm3 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term3,Nd,Ns,icetopo,zz,dz);
+Eterm3_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term3_mean;
 Eterm3_pert = Eterm3 - Eterm3_mean;
 
-Eterm4 = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*term4,Nd,Ns,icetopo,zz,dz);
-Eterm4_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*term4_mean;
+Eterm4 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term4,Nd,Ns,icetopo,zz,dz);
+Eterm4_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term4_mean;
 Eterm4_pert = Eterm4 - Eterm4_mean;
 
-Eterm5 = plume_mean(0.5*(Q(:,:,:,1:end-1)+Q(:,:,:,2:end)).*term5,Nd,Ns,icetopo,zz,dz);
-Eterm5_mean = 0.5*(Q_mean(:,1:end-1)+Q_mean(:,2:end)).*term5_mean;
+Eterm5 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term5,Nd,Ns,icetopo,zz,dz);
+Eterm5_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term5_mean;
 Eterm5_pert = Eterm5 - Eterm5_mean;
-% 
-% %%
-% bdotdz(:,:,2:Nr,:) = (bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;
-% bdotdz(:,:,1,:) = 2*bdotdz(:,:,2,:) - bdotdz(:,:,3,:);
-% wbdotdz = 0.5*(W(:,:,:,1:Nt-1)+W(:,:,:,2:Nt)).*bdotdz;
-% wbdotdz_mean = plume_mean(wbdotdz,Nd,Ns,icetopo,zz,dz);
-% bdotdy(:,1:Ny-1,:,:) = diff(bdot_comp,1,2)./dy;
-% bdotdy(:,Ny,:,:) = 2*bdotdy(:,Ny-1,:,:) - bdotdy(:,Ny-2,:,:);
-% vbdotdy = 0.5*(V(:,:,:,1:Nt-1)+V(:,:,:,2:Nt)).*bdotdy;
-% vbdotdy_mean = plume_mean(vbdotdy,Nd,Ns,icetopo,zz,dz);
-% %%
-% dbdz(:,:,2:Nr,:) = (b(:,:,[1:Nr-1],:) - b(:,:,[2:Nr],:))./dz;
-% dbdz(:,:,1,:) = 2*dbdz(:,:,2,:) - dbdz(:,:,3,:);
-% wdbdz = 0.5*(W(:,:,:,1:Nt-1)+W(:,:,:,2:Nt)).*dbdz;
-% wdbdz_mean = plume_mean(wdbdz,Nd,Ns,icetopo,zz,dz);
-% dbdy(:,1:Ny-1,:,:) = diff(b,1,2)./dy;
-% dbdy(:,Ny,:,:) = 2*dbdy(:,Ny-1,:,:) - dbdy(:,Ny-2,:,:);
-% vdbdy = 0.5*(V(:,:,:,1:Nt-1)+V(:,:,:,2:Nt)).*dbdy;
-% vdbdy_mean = plume_mean(vdbdy,Nd,Ns,icetopo,zz,dz);
+
 %%
 %%% Quick plot of Q snapshot
-figure(1);pcolor(YY',ZZ'-(YY'-4e4)*s,squeeze(Q(1,:,:,120)));shading flat;colorbar;caxis([-1 1]*3e-8);colormap redblue; set(gca,'YLim',[-20 0]);
+figure(1);pcolor(YY',ZZ'-(YY'-4e4)*s,squeeze(q(1,:,:,120)));shading flat;colorbar;caxis([-1 1]*3e-8);colormap redblue; set(gca,'YLim',[-20 0]);
 
-figure(2);pcolor(NT,D,sqrt(E_pert(:,2:end))'-abs(Q_mean(:,2:end))');colorbar;shading flat;caxis([-1 1]*1e-7);colormap redblue;
+figure(2);pcolor(NT,D,sqrt(E_pert(:,2:end))'-abs(q_mean(:,2:end))');colorbar;shading flat;caxis([-1 1]*1e-7);colormap redblue;
 
 figure(3);pcolor(NT,D,E_mean(:,2:end)');colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 figure(4);pcolor(NT,D,E_pert(:,2:end)');colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
@@ -379,38 +816,49 @@ figure(5);pcolor(NT,D,Et_mean');colorbar;shading flat;caxis([-1 1]*1e-21);colorm
 figure(6);pcolor(NT,D,Et_pert');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
 figure(7);pcolor(NT,D,Et_pert'-Et_mean');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
 
-figure(8);pcolor(NT,D,cumsum(Eqdot_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(9);pcolor(NT,D,cumsum(Eqdot_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(8);pcolor(NT,D,cumsum(Eqdot_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(9);pcolor(NT,D,cumsum(Eqdot_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
-figure(10);pcolor(NT,D,cumsum(Eterm1_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(11);pcolor(NT,D,cumsum(Eterm1_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(10);pcolor(NT,D,cumsum(Eterm1_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(11);pcolor(NT,D,cumsum(Eterm1_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
-figure(12);pcolor(NT,D,cumsum(Eterm2_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(13);pcolor(NT,D,cumsum(Eterm2_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(12);pcolor(NT,D,cumsum(Eterm2_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(13);pcolor(NT,D,cumsum(Eterm2_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
-figure(14);pcolor(NT,D,cumsum(Eterm3_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(15);pcolor(NT,D,cumsum(Eterm3_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(14);pcolor(NT,D,cumsum(Eterm3_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(15);pcolor(NT,D,cumsum(Eterm3_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
-figure(16);pcolor(NT,D,cumsum(Eterm4_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(17);pcolor(NT,D,cumsum(Eterm4_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(16);pcolor(NT,D,cumsum(Eterm4_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(17);pcolor(NT,D,cumsum(Eterm4_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
-figure(18);pcolor(NT,D,cumsum(Eterm5_mean',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(19);pcolor(NT,D,cumsum(Eterm5_pert',1)*t1hour);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(18);pcolor(NT,D,cumsum(Eterm5_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(19);pcolor(NT,D,cumsum(Eterm5_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
 
+figure(20);pcolor(NT,D,cumsum(EqB_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(21);pcolor(NT,D,cumsum(EqB_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+
+figure(22);pcolor(NT,D,cumsum(EqF_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+figure(23);pcolor(NT,D,cumsum(EqF_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+
+%%
 %%% Variance ratio budget terms
 ENqdot = Eqdot_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eqdot_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
+ENqB = EqB_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*EqB_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+ENqF = EqF_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*EqF_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
 ENterm1 = Eterm1_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm1_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
 ENterm2 = Eterm2_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm2_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
 ENterm3 = Eterm3_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm3_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
 ENterm4 = Eterm4_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm4_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
 ENterm5 = Eterm5_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm5_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2; 
-figure(20);pcolor(NT,D,(E_pert(:,2:end)'./E_mean(:,2:end)'));colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(21);pcolor(NT,D,cumsum(ENqdot',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(22);pcolor(NT,D,cumsum(ENterm1',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(23);pcolor(NT,D,cumsum(ENterm2',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(24);pcolor(NT,D,cumsum(ENterm3',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(25);pcolor(NT,D,cumsum(ENterm4',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
-figure(26);pcolor(NT,D,cumsum(ENterm5',1)*t1hour);colorbar;shading flat;caxis([-10 10]);colormap redblue;
+figure(24);pcolor(NT,D,(E_pert(:,2:end)'./E_mean(:,2:end)'));colorbar;shading flat;caxis([-10 10]);colormap redblue; title('E')
+figure(25);pcolor(NT,D,cumsum(ENqdot',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qt');
+figure(26);pcolor(NT,D,cumsum(ENqB',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qB');
+figure(27);pcolor(NT,D,cumsum(ENqF',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qF');
+figure(28);pcolor(NT,D,cumsum(ENterm1',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term1');
+figure(29);pcolor(NT,D,cumsum(ENterm2',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term2');
+figure(30);pcolor(NT,D,cumsum(ENterm3',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term3');
+figure(31);pcolor(NT,D,cumsum(ENterm4',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term4');
+figure(32);pcolor(NT,D,cumsum(ENterm5',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term5');
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -505,13 +953,112 @@ xlabel('days')
 title('$\dot{q_{bc}} - \dot{q}$','interpreter','latex')
 
 
+%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Kinetic Energy %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 
+% Uc = U; Vc = NaN(Nx,Ny,Nr,Nt); Wc = NaN(Nx,Ny,Nr,Nt);
+% Vc(:,1:Ny-1,:,:) = (V(:,1:Ny-1,:,:)+V(:,2:Ny,:,:))/2; Vc(:,Ny,:,:) = 2*Vc(:,Ny-1,:,:) - Vc(:,Ny-2,:,:);
+% Wc(:,:,2:Nr,:) = (W(:,:,2:Nr,:)+W(:,:,1:Nr-1,:))/2; Wc(:,:,1,:) = 2*Wc(:,:,2,:) - Wc(:,:,3,:);
+% Uc = iceNaN(Uc,Nx,Ny,Nr,icetopo,zz); Vc = iceNaN(Vc,Nx,Ny,Nr,icetopo,zz); Wc = iceNaN(Wc,Nx,Ny,Nr,icetopo,zz);
+% KE = Uc.^2 + Vc.^2 + Wc.^2 ;
+% 
+% % advective flux terms
+% vKE = Vc.*KE;
+% wKE = Wc.*KE;
+% vKEdy = diff(vKE,1,2)./dy; 
+% vKEdy = (vKEdy(:,:,2:Nr,:) + vKEdy(:,:,1:Nr-1,:))/2;
+% vKEdy = interp_yz(vKEdy);
+% wKEdz = (wKE(:,:,[1:Nr-1],1:Nt) - wKE(:,:,[2:Nr],1:Nt))./dz;
+% wKEdz = (wKEdz(:,2:Ny,:,:) + wKEdz(:,1:Ny-1,:,:))/2;
+% wKEdz = interp_yz(wKEdz);
+% 
+% KEadvFlux = -(vKEdy + wKEdz); 
+% 
+% % pressure flux terms
+% P = NaN(Nx,Ny,Nr,Nt); P(:,:,:,1:Nt-1) = PH + PNH(:,:,:,1:Nt-1); P(:,:,:,Nt) = 2*P(:,:,:,Nt-1) - P(:,:,:,Nt-2);
+% vP = Vc.*P;
+% wP = Wc.*P;
+% vPdy = 1/rho0*diff(vP,1,2)./dy; 
+% vPdy = (vPdy(:,:,2:Nr,:) + vPdy(:,:,1:Nr-1,:))/2;
+% vPdy = interp_yz(vPdy);
+% wPdz = 1/rho0*(wP(:,:,[1:Nr-1],1:Nt) - wP(:,:,[2:Nr],1:Nt))./dz;
+% wPdz = (wPdz(:,2:Ny,:,:) + wPdz(:,1:Ny-1,:,:))/2;
+% wPdz = interp_yz(wPdz);
+% 
+% KEpFlux = - (vPdy + wPdz);
+% 
+% % viscous flux terms 
+% KEdy2(:,2:Ny-1,:,:) = (KE(:,3:Ny,:,:) - 2*KE(:,2:Ny-1,:,:) + KE(:,1:Ny-2,:,:))./(dy^2); % second derivative
+% KEdy2(:,1,:,:) = 2*KEdy2(:,2,:,:) - KEdy2(:,3,:,:); KEdy2(:,Ny,:,:) = 2*KEdy2(:,Ny-1,:,:) - KEdy2(:,Ny-2,:,:); % adding boundaries
+% KEdy2 = (KEdy2(:,2:Ny,:,:) + KEdy2(:,1:Ny-1,:,:))/2; KEdy2 = (KEdy2(:,:,2:Nr,:) + KEdy2(:,:,1:Nr-1,:))/2; 
+% KEdy2 = interp_yz(KEdy2); 
+% KEviscFlux_h = viscA4/(dy^2).*KEdy2;
+% KEdz2(:,:,2:Nr-1,:) = (KE(:,:,1:Nr-2,:) - 2*KE(:,:,2:Nr-1,:,:) + KE(:,:,3:Nr,:))./(dz^2);
+% KEdz2(:,:,1,:) = 2*KEdz2(:,:,2,:) - KEdz2(:,:,3,:); KEdz2(:,:,Nr,:) = 2*KEdz2(:,:,Nr-1,:) - KEdz2(:,:,Nr-2,:);
+% KEdz2 = (KEdz2(:,2:Ny,:,:) + KEdz2(:,1:Ny-1,:,:))/2; KEdz2 = (KEdz2(:,:,2:Nr,:) + KEdz2(:,:,1:Nr-1,:))/2;
+% KEdz2 = interp_yz(KEdz2);
+% KEviscFlux_z = viscAr*KEdz2;
+% 
+% KEviscFlux = - (KEviscFlux_z + KEviscFlux_h);
+% 
+% % buoyancy source
+% wb = Wc.*b_;
+% 
+% % viscous dissipation terms
+% dUdy = NaN(Nx,Ny,Nr,Nt); dUdy(:,1:Ny-1,:,:) = diff(U(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
+% dUdy(:,:,2:Nr,:) = (dUdy(:,:,[2:Nr],:)+dUdy(:,:,[1:Nr-1],:))/2; % average to top right corner
+% dUdy(:,:,1,:) = 2*dUdy(:,:,2,:)-dUdy(:,:,3,:); dUdy(:,Ny,:,:) = 2*dUdy(:,Ny-1,:,:)-dUdy(:,Ny-2,:,:);
+% dVdy = NaN(Nx,Ny,Nr,Nt); dVdy(:,1:Ny-1,:,:) = diff(Vc(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
+% dVdy(:,:,2:Nr,:) = (dVdy(:,:,[2:Nr],:)+dVdy(:,:,[1:Nr-1],:))/2; % average to top right corner
+% dVdy(:,:,1,:) = 2*dVdy(:,:,2,:)-dVdy(:,:,3,:); dVdy(:,Ny,:,:) = 2*dVdy(:,Ny-1,:,:)-dVdy(:,Ny-2,:,:);
+% dWdy = NaN(Nx,Ny,Nr,Nt); dWdy(:,1:Ny-1,:,:) = diff(Wc(:,:,:,1:Nt),1,2)./dy; % derivative wrt y, shifts to right face center
+% dWdy(:,:,2:Nr,:) = (dWdy(:,:,[2:Nr],:)+dWdy(:,:,[1:Nr-1],:))/2; % average to top right corner
+% dWdy(:,:,1,:) = 2*dWdy(:,:,2,:)-dWdy(:,:,3,:); dWdy(:,Ny,:,:) = 2*dWdy(:,Ny-1,:,:)-dWdy(:,Ny-2,:,:);
+% KEdiss_h = viscA4/(dy^2)*(dUdy.^2 + dVdy.^2 + dWdy.^2);
+% 
+% dUdz = NaN(Nx,Ny,Nr,Nt); dUdz(:,:,2:Nr,:) = (U(:,:,[1:Nr-1],1:Nt) - U(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
+% dUdz(:,1:Ny-1,:,:) = (dUdz(:,[2:Ny],:,:)+dUdz(:,[1:Ny-1],:,:))/2; % average to top right corner
+% dUdz(:,:,1,:) = 2*dUdz(:,:,2,:)-dUdz(:,:,3,:); dUdz(:,Ny,:,:) = 2*dUdz(:,Ny-1,:,:)-dUdz(:,Ny-2,:,:); % add boundaries
+% dVdz = NaN(Nx,Ny,Nr,Nt); dVdz(:,:,2:Nr,:) = (Vc(:,:,[1:Nr-1],1:Nt) - Vc(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
+% dVdz(:,1:Ny-1,:,:) = (dVdz(:,[2:Ny],:,:)+dVdz(:,[1:Ny-1],:,:))/2; % average to top right corner
+% dVdz(:,:,1,:) = 2*dVdz(:,:,2,:)-dVdz(:,:,3,:); dVdz(:,Ny,:,:) = 2*dVdz(:,Ny-1,:,:)-dVdz(:,Ny-2,:,:); % add boundaries
+% dWdz = NaN(Nx,Ny,Nr,Nt); dWdz(:,:,2:Nr,:) = (Wc(:,:,[1:Nr-1],1:Nt) - Wc(:,:,[2:Nr],1:Nt))./dz; % derivative wrt z, shifts to top face center
+% dWdz(:,1:Ny-1,:,:) = (dWdz(:,[2:Ny],:,:)+dWdz(:,[1:Ny-1],:,:))/2; % average to top right corner
+% dWdz(:,:,1,:) = 2*dWdz(:,:,2,:)-dWdz(:,:,3,:); dWdz(:,Ny,:,:) = 2*dWdz(:,Ny-1,:,:)-dWdz(:,Ny-2,:,:); % add boundaries
+% KEdiss_z = viscAr*(dUdz.^2 + dVdz.^2 + dWdz.^2);
+% 
+% KEdiss = KEdiss_h + KEdiss_z;
+% 
+% % KE tendency
+% KEt(:,:,:,1:Nt-1) = (KE(:,:,:,2:Nt) - KE(:,:,:,1:Nt-1))/dt;
+% KEt(:,:,:,Nt) = 2*KEt(:,:,:,Nt-1) - KEt(:,:,:,Nt-2);
+% 
+% % KEt_tot
+% KEt_tot = KEadvFlux + KEpFlux + KEviscFlux + KEdiss;
+% 
+% % residual
+% res = KEt - KEt_tot;
+% 
+% 
+% figure;
+% hold on;
+% plot(squeeze(nansum(nansum(KEadvFlux(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(KEpFlux(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(KEviscFlux(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(wb(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(KEdiss(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(KEt(:,:,:,360),1),3)));
+% plot(squeeze(nansum(nansum(KEt_tot(:,:,:,360),1),3)));
+% legend('adv','p','visc','wb','diss','KEt','KEt_tot')
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [b bdot] = buoyancy(S,T,alpha,beta,icetopo,zz)
-t1min = 60;
-t1hour = 60*t1min;
+function [b bdot] = buoyancy(S,T,alpha,beta,icetopo,zz,dt)
 rho0 = 1027;
 g = 9.81;
 Nx = size(S,1);
@@ -519,11 +1066,10 @@ Ny = size(S,2);
 Nr = size(S,3);
 Nt = size(S,4);
 for n = 1:Nt
-    b(1,:,:,n) = g.*(alpha.*squeeze(T(1,:,:,n))-beta.*squeeze(S(1,:,:,n))); %- ...
-    %g.*(alpha.*squeeze(T(1,:,:,1)) - beta.*squeeze(S(1,:,:,1)));
+    b(1,:,:,n) = g.*(alpha.*squeeze(T(1,:,:,n))-beta.*squeeze(S(1,:,:,n)))- g.*(alpha.*squeeze(T(1,:,:,1)) - beta.*squeeze(S(1,:,:,1)));
 end
 b = iceNaN(b,Nx,Ny,Nr,icetopo,zz);
-bdot = (b(:,:,:,2:Nt)-b(:,:,:,1:Nt-1)) ./ t1hour;
+bdot = (b(:,:,:,2:Nt)-b(:,:,:,1:Nt-1)) ./ dt;
 end
 
 function BB = interp_yz(AA)
@@ -608,4 +1154,39 @@ function Q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0)
     %Qcent = dbdz.*ZETAz; % centrifugal
     Q = dbdy.*ZETAy + (f0 + ZETAz).*dbdz; % total
     
+end
+
+
+function Apos = posVal(A)
+    Ny = size(A,2);
+    Nr = size(A,3);
+    Nt = size(A,4);
+    for j = 1:Ny
+        for k = 1:Nr
+            for n = 1:Nt
+                if A(1,j,k,n)>0
+                    Apos(1,j,k,n) = A(1,j,k,n);
+                else
+                    Apos(1,j,k,n) = NaN;
+                end
+            end
+        end
+    end
+end
+
+function Apos = posPVval(A,qt)
+    Ny = size(A,2);
+    Nr = size(A,3);
+    Nt = size(A,4);
+    for j = 1:Ny
+        for k = 1:Nr
+            for n = 1:Nt
+                if qt(1,j,k,n)>0
+                    Apos(1,j,k,n) = A(1,j,k,n);
+                else
+                    Apos(1,j,k,n) = NaN;
+                end
+            end
+        end
+    end
 end
