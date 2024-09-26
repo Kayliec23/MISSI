@@ -66,13 +66,34 @@ bt = diff(b,1,4)./dt;
 bdot = iceNaN(bdot,Nx,Ny,Nr,icetopo,zz);
 
 %%
+vol = dx.*dy.*dz; %Lx.*Ly.*flip(-icetopo);
 % calculate bAdv
-% calculate bdot_tot
-[bAdvy bAdvydot] = buoyancy(ADVy_S./(dx*dy*dz),ADVy_T./(dx*dy*dz),alpha,beta,icetopo,zz,dt);
-[bAdvz bAdvzdot] = buoyancy(ADVr_S./(dx*dy*dz),ADVr_T./(dx*dy*dz),alpha,beta,icetopo,zz,dt);
+advY_S(:,1:Ny-1,:,:) = diff(ADVy_S,1,2); advY_S(:,Ny,:,:) = 2*advY_S(:,Ny-1,:,:) - advY_S(:,Ny-2,:,:); advY_S = advY_S./vol;
+advY_T(:,1:Ny-1,:,:) = diff(ADVy_T,1,2); advY_T(:,Ny,:,:) = 2*advY_T(:,Ny-1,:,:) - advY_T(:,Ny-2,:,:); advY_T = advY_T./vol;
+advR_S(:,:,2:Nr,:) = (ADVr_S(:,:,1:Nr-1,:) - ADVr_S(:,:,2:Nr,:))./vol; advR_S(:,:,1,:) = 2*advR_S(:,:,2,:) - advR_S(:,:,3,:);
+advR_S(:,:,2:Nr,:) = (advR_S(:,:,2:Nr,:) + advR_S(:,:,1:Nr-1,:))./2; advR_S(:,:,1,:) = 2*advR_S(:,:,2,:) - advR_S(:,:,3,:);
+advR_T(:,:,2:Nr,:) = (ADVr_T(:,:,1:Nr-1,:) - ADVr_T(:,:,2:Nr,:))./vol; advR_T(:,:,1,:) = 2*advR_T(:,:,2,:) - advR_T(:,:,3,:);
+advR_T(:,:,2:Nr,:) = (advR_T(:,:,2:Nr,:) + advR_T(:,:,1:Nr-1,:))./2; advR_T(:,:,1,:) = 2*advR_T(:,:,2,:) - advR_T(:,:,3,:);
+
+[bAdvy bAdvydot] = buoyancy(advY_S,advY_T,alpha,beta,icetopo,zz,dt);
+[bAdvz bAdvzdot] = buoyancy(advR_S,advR_T,alpha,beta,icetopo,zz,dt);
 bAdv = bAdvy + bAdvz;
 bAdv = iceNaN(bAdv,Nx,Ny,Nr,icetopo,zz);
 
+% calculate bDiff (horizontal component equals zero in set-up)
+diffY_S(:,1:Ny-1,:,:) = diff(DFyE_S,1,2); diffY_S(:,Ny,:,:) = 2*diffY_S(:,Ny-1,:,:) - diffY_S(:,Ny-2,:,:); diffY_S = diffY_S./vol;
+diffY_T(:,1:Ny-1,:,:) = diff(DFyE_T,1,2); diffY_T(:,Ny,:,:) = 2*diffY_T(:,Ny-1,:,:) - diffY_T(:,Ny-2,:,:); diffY_T = diffY_T./vol;
+DFr_T = DFrI_T + DFrE_T; 
+DFr_S = DFrI_S + DFrE_S;
+diffR_S(:,:,2:Nr,:) = (DFr_S(:,:,1:Nr-1,:) - DFr_S(:,:,2:Nr,:))./vol; diffR_S(:,:,1,:) = 2*diffR_S(:,:,2,:) - diffR_S(:,:,3,:);
+diffR_S(:,:,2:Nr,:) = (diffR_S(:,:,2:Nr,:) + diffR_S(:,:,1:Nr-1,:))./2; diffR_S(:,:,1,:) = 2*diffR_S(:,:,2,:) - diffR_S(:,:,3,:);
+diffR_T(:,:,2:Nr,:) = (DFr_T(:,:,1:Nr-1,:) - DFr_T(:,:,2:Nr,:))./vol; diffR_T(:,:,1,:) = 2*diffR_T(:,:,2,:) - diffR_T(:,:,3,:);
+diffR_T(:,:,2:Nr,:) = (diffR_T(:,:,2:Nr,:) + diffR_T(:,:,1:Nr-1,:))./2; diffR_T(:,:,1,:) = 2*diffR_T(:,:,2,:) - diffR_T(:,:,3,:);
+
+[bdiffy bdiffydot] = buoyancy(diffY_S,diffY_T,alpha,beta,icetopo,zz,dt);
+[bdiffz bdiffzdot] = buoyancy(diffR_S,diffR_T,alpha,beta,icetopo,zz,dt);
+bDiff = bdiffy + bdiffz;
+bDiff = iceNaN(bDiff,Nx,Ny,Nr,icetopo,zz);
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,28 +103,36 @@ bAdv = iceNaN(bAdv,Nx,Ny,Nr,icetopo,zz);
 %%% define u and its components
 u = (U(:,:,:,1:Nt-1)+U(:,:,:,2:Nt))/2;
 
-%%% define udot and its components
+%%% define udot
 udot = TOTUTEND./t1day;
 udot = iceNaN(udot,Nx,Ny,Nr,icetopo,zz);
 
-component = 'tot';
+% calculate uvisc
+viscY(:,1:Ny-1,:,:) = diff(VISCy_Um,1,2); viscY(:,Ny,:,:) = 2*viscY(:,Ny-1,:,:) - viscY(:,Ny-2,:,:);
+VISr = VISrI_Um + VISrE_Um; 
+viscR(:,:,2:Nr,:) = (VISr(:,:,1:Nr-1,:) - VISr(:,:,2:Nr,:)); viscR(:,:,1,:) = 2*viscR(:,:,2,:) - viscR(:,:,3,:);
+uvisc = viscY./vol + viscR./vol; 
+
+%     case 'visc'
+%         udot_comp = VISCx_Um + VISCy_Um + VISrE_Um + VISrE_Um;
+%         bdot_comp = bdot;
+
+
+component = 'tend';
 
 switch component
     case 'tend'
         udot_comp = udot;
         bdot_comp = bdot;
     case 'adv'
-        udot_comp = Um_Advec;
+        udot_comp = Um_Advec - Um_Cori;
         bdot_comp = bAdv;
-    case 'diss'
-        udot_comp = Um_Diss + Um_ImplD + VISrI./dx./dy./dz;
-        bdot_comp = bdot;
-%     case 'visc'
-%         udot_comp = VISCx_Um + VISCy_Um + VISrE_Um + VISrE_Um;
-%         bdot_comp = bdot;
+    case 'nc'
+        udot_comp = Um_Diss + Um_ImplD; % + VISrI./dx./dy./dz;
+        bdot_comp = bDiff;
     case 'tot'
-        udot_comp = udot + Um_Advec;
-        bdot_comp = bdot + bAdv;
+        udot_comp = udot + Um_Advec - Um_Diss - Um_ImplD;
+        bdot_comp = bdot + bAdv - bDiff;
 end
 
 
@@ -116,7 +145,7 @@ term1 = interp_yz(term1);    % interpolate in z and y
 A = diff(udot_comp,1,2); % diff in y
 A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
 A = interp_yz(A);    % interpolate in z and y
-B = (b(:,:,[1:Nr-1],:) - b(:,:,[2:Nr],:));   % diff in z
+B = (b(:,:,[1:Nr-1],:) - b(:,:,[2:Nr],:))./dz;   % diff in z
 B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
 B = interp_yz(B);    % interpolate in z and y
 term2 = -(A.*B)./dy./dz;
@@ -125,13 +154,13 @@ term2 = -(A.*B)./dy./dz;
 A = diff(u,1,2); % diff in y
 A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
 A = interp_yz(A);    % interpolate in z and y
-B = (bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:));    % diff in z
+B = (bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;    % diff in z
 B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
 B = interp_yz(B);    % interpolate in z and y
 term3 = -(A.*B)./dy./dz;
 
 %%% term4
-A = (udot_comp(:,:,[1:Nr-1],:) - udot_comp(:,:,[2:Nr],:)); % diff in z
+A = (udot_comp(:,:,[1:Nr-1],:) - udot_comp(:,:,[2:Nr],:))./dz; % diff in z
 A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
 A = interp_yz(A);    % interpolate in z and y
 B = diff(b,1,2); % diff in y
@@ -140,7 +169,7 @@ B = interp_yz(B);    % interpolate in z and y
 term4 = (A.*B)./dy./dz;
 
 %%% term5
-A = (u(:,:,[1:Nr-1],:) - u(:,:,[2:Nr],:));    % diff in z
+A = (u(:,:,[1:Nr-1],:) - u(:,:,[2:Nr],:))./dz;    % diff in z
 A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
 A = interp_yz(A);    % interpolate in z and y
 B = diff(bdot_comp,1,2);    % diff in y
@@ -150,18 +179,22 @@ term5 = (A.*B)./dy./dz;
 
 %%% qdot
 switch component
-    case 'tendency'
+    case 'tend'
         qdot = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(qdot(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qdot');
         qF = term2 + term4;
+        figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
         qB = term1 + term3 + term5; 
+        figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
     case 'adv'
         qAdv = term1 + term2 + term3 + term4 + term5;
-    case 'diss'
-        qDiss = term1 + term2 + term3 + term4 + term5;
-    case 'visc'
-        qVisc = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(qAdv(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qAdv');
+    case 'nc'
+        qNC = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(qNC(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qNC');
     case 'tot'
         Dq = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(Dq(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('Dq');
 end
 
 %%
