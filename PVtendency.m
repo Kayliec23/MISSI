@@ -14,8 +14,9 @@
 %%% TOTUTEND - Tendency of Zonal Component of Velocity
 %%% TOTTTEND - Tendency of Potential Temperature
 %%% TOTSTEND - Tendency of Salinity
-addpath /Users/Kayliec23/Desktop/MISSI/analysis
-addpath /Users/Kayliec23/Desktop/analysis
+addpath /Users/kalyliec23/Desktop/MISSI/Analysis/
+addpath /Users/kalyliec23/Desktop/MISSI/
+% addpath /Users/Kayliec23/Desktop/analysis
 
 % Constants
 Nx = length(delX);
@@ -37,7 +38,6 @@ t1day = 24*t1hour;
 dt = t1day;
 [YY,ZZ] = meshgrid(yy,zz);
 
-% addpath /Users/Kayliec23/Desktop/analysis
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -116,7 +116,7 @@ uvisc = viscY + viscR;
 udiss = Um_Diss + Um_ImplD;
 
 
-component = 'nc';
+component = 'tot';
 
 switch component
     case 'tend'
@@ -125,12 +125,12 @@ switch component
     case 'adv'
         udot_comp = - Um_Advec;
         bdot_comp = bAdv;
-    case 'nc'
+    case 'qF'
         udot_comp = - udiss; % - uvisc;
+        bdot_comp = zeros(size(bAdv));
+    case 'qB'
+        udot_comp = zeros(size(bAdv));
         bdot_comp = bDiff;
-    case 'Du'
-        udot_comp = udot - Um_Advec;
-        bdot_comp = bdot + bAdv;
     case 'tot'
         udot_comp = udot - (Um_Advec + udiss);
         bdot_comp = bdot + bAdv + bDiff;
@@ -183,16 +183,19 @@ switch component
     case 'tend'
         qdot = term1 + term2 + term3 + term4 + term5;
         figure; pcolor(YY,ZZ,squeeze(qdot(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qdot');
-        qF = term2 + term4;
-        figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
-        qB = term1 + term3 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
-    case 'adv'
+    %     qF = term2 + term4;
+    %     figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
+    %     qB = term1 + term3 + term5;
+    %     figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
+     case 'adv'
         qAdv = term1 + term2 + term3 + term4 + term5;
         figure; pcolor(YY,ZZ,squeeze(qAdv(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qAdv');
-    case 'nc'
-        qNC = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qNC(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qNC');
+    case 'qF'
+        qF = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
+    case 'qB'
+        qB = term1 + term2 + term3 + term4 + term5;
+        figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
     case 'Du'
         Dq = term1 + term2 + term3 + term4 + term5;
         figure; pcolor(YY,ZZ,squeeze(Dq(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('Dq');
@@ -205,6 +208,126 @@ end
 q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0);
 q = iceNaN(q,Nx,Ny,Nr,icetopo,zz);
 qt = diff(q,1,4)./dt;
+
+%%
+scrsz = get(0,'ScreenSize');
+fontsize = 22;
+
+framepos = [0 scrsz(4)/2 scrsz(3) scrsz(4)];
+plotloc = [0.17 0.18 0.62 0.7];
+handle = figure(30);
+set(handle,'Position',framepos);
+clf;
+set(gcf,'Color','w');
+gap = [0.02 0.015];
+clim = [-1 1]*1e-13;
+x_lim = [15 25];
+y_lim = [-330 -200];
+curve1 = icetopo;
+curve2 = zeros(1,length(curve1));
+x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
+x2 = [x1, fliplr(x1)];
+inBetween = [curve1, fliplr(curve2)];
+c_ice = [0.9 0.9 0.9];
+
+h1 = subplot(3,2,1);
+pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,end))'); shading flat;
+mymap = colormap('redblue');
+colormap(h1,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca;
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+title('qt')
+
+h2 = subplot(3,2,2);
+pcolor(YY/m1km,ZZ,squeeze(qF(:,:,:,end))'); shading flat;
+mymap = colormap('redblue');
+colormap(h2,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca;
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+title('qF')
+
+h3 = subplot(3,2,3);
+pcolor(YY/m1km,ZZ,squeeze(qB(:,:,:,end))'); shading flat;
+mymap = colormap('redblue');
+colormap(h3,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca;
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+title('qB')
+
+h4 = subplot(3,2,4);
+pcolor(YY/m1km,ZZ,squeeze(qAdv(:,:,:,end))'); shading flat;
+mymap = colormap('redblue');
+colormap(h4,mymap)
+caxis(clim)
+hold on;
+set(gca,'fontsize',fontsize)
+ylabel('z (m)','interpreter','latex')
+xticklabels([])
+fill(x2, inBetween, c_ice,'EdgeColor','none');
+ax = gca;
+ax.Box = 'on';
+ax.LineWidth = 2;
+ax.FontName = 'latex';
+title('qAdv')
+
+% h5 = subplot(3,2,5);
+% pcolor(YY/m1km,ZZ,squeeze(qNC(:,:,:,end))'); shading flat;
+% mymap = colormap('redblue');
+% colormap(h5,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% ylabel('z (m)','interpreter','latex')
+% xticklabels([])
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% title('qDiss')
+% 
+% h6 = subplot(3,2,6);
+% pcolor(YY/m1km,ZZ,squeeze(qtot(:,:,:,end))'); shading flat;
+% mymap = colormap('redblue');
+% colormap(h6,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% ylabel('z (m)','interpreter','latex')
+% xticklabels([])
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% title('qtot')
+
+
+
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -551,16 +674,23 @@ q_sum = cumsum(q,4).*dt; q_sum_anom = q_sum - q(:,:,:,1);
 fq_sum = cumsum(f0*q,4).*dt; fq_sum_anom = fq_sum - fq_sum(:,:,:,1);
 qB_sum = cumsum(qB,4).*dt; qB_sum_anom = qB_sum - qB(:,:,:,1);
 qF_sum = cumsum(qF,4).*dt; qF_sum_anom = qF_sum - qF(:,:,:,1);
+qAdv_sum = cumsum(qAdv,4).*dt; qAdv_sum_anom = qAdv_sum - qAdv(:,:,:,1);
 qt_res_sum =  cumsum(qt-qdot,4);
 qB_sum_anom_pos = posVal(qB_sum_anom);
 qF_sum_anom_pos = posVal(qF_sum_anom);
 qt_sum_anom_pos = posVal(qt_sum_anom);
+qAdv_sum_anom_pos = posVal(qAdv_sum_anom);
+
+
+
 %%
 qB_sum_anom_posPV = posPVval(qB_sum_anom,qt_sum_anom);
 qF_sum_anom_posPV = posPVval(qF_sum_anom,qt_sum_anom);
 qt_sum_anom_posPV = posPVval(qt_sum_anom,qt_sum_anom);
+qAdv_sum_anom_posPV = posPVval(qAdv_sum_anom,qt_sum_anom);
 qB_sum_anom_posPV_pos = posVal(qB_sum_anom_posPV);
 qF_sum_anom_posPV_pos = posVal(qF_sum_anom_posPV);
+qAdv_sum_anom_posPV_pos = posVal(qAdsv_sum_anom_posPV);
 qt_sum_anom_posPV_pos = posVal(qt_sum_anom_posPV);
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -577,9 +707,11 @@ handle = figure(30);
 set(handle,'Position',framepos);
 clf;
 set(gcf,'Color','w');
-t1 = 2; t2 = 3; t3 = 20; t4 = 60;
-gap = [0.02 0.015];
-clim = [-1 1]*1e-9;
+t1 = 2; t2 = 3; t3 = 60;
+gap = [0.03 0.04];
+marg_h = [0.05 0.075];
+marg_w = [0.075 0.1];
+clim = [-5 5]*1e-10;
 x_lim = [15 25];
 y_lim = [-330 -200];
 curve1 = icetopo;
@@ -590,11 +722,11 @@ inBetween = [curve1, fliplr(curve2)];
 c_ice = [0.9 0.9 0.9];
 
 % qt
-h1 = subtightplot(4,4,1,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t1))'); shading flat;
+h1 = subtightplot(4,3,1,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t1))'); shading flat;
 mymap = colormap('redblue');
 colormap(h1,mymap)
-caxis(clim*1e-3)
+caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 ylabel('z (m)','interpreter','latex')
@@ -629,11 +761,11 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-h2 = subtightplot(4,4,2,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t2))'); shading flat;
+h2 = subtightplot(4,3,2,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t2))'); shading flat;
 mymap = colormap('redblue');
 colormap(h2,mymap)
-caxis(clim*1e-3)
+caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 title(['t = ',num2str(t2),' day'],'interpreter','latex','fontsize',28)
@@ -657,11 +789,11 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-h3 = subtightplot(4,4,3,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t3))'); shading flat;
+h3 = subtightplot(4,3,3,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t3))'); shading flat;
 mymap = colormap('redblue');
 colormap(h3,mymap)
-caxis(clim*1e-3)
+caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 title(['t = ',num2str(t3),' day'],'interpreter','latex','fontsize',28)
@@ -685,15 +817,15 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-h4 = subtightplot(4,4,4,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t4))'); shading flat;
+h4 = subtightplot(4,3,4,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qAdv_sum_anom_posPV(:,:,:,t1))'); shading flat;
 colorbar('FontSize',20,'FontName','latex','linewidth',1.5,'position',[0.93    0.7350    0.0116    0.19000]);
 mymap = colormap('redblue');
 colormap(h4,mymap)
-caxis(clim*1e-3)
+caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
-title(['t = ',num2str(t4),' day'],'interpreter','latex','fontsize',28)
+%title(['t = ',num2str(t4),' day'],'interpreter','latex','fontsize',28)
 xticklabels([])
 yticklabels([])
 %title('$q_t$','interpreter','latex')
@@ -713,9 +845,9 @@ h_annot=annotation('textbox',...
     'EdgeColor','none',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
-% qt_sum
-h5 = subtightplot(4,4,5,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t1))'); shading flat;
+
+h5 = subtightplot(4,3,5,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qAdv_sum_anom_posPV(:,:,:,t2))'); shading flat;
 mymap = colormap('redblue');
 colormap(h5,mymap)
 caxis(clim)
@@ -752,8 +884,8 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-h6 = subtightplot(4,4,6,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t2))'); shading flat;
+h6 = subtightplot(4,3,6,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qAdv_sum_anom_posPV(:,:,:,t3))'); shading flat;
 mymap = colormap('redblue');
 colormap(h6,mymap)
 caxis(clim)
@@ -779,8 +911,8 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-h7 = subtightplot(4,4,7,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t3))'); shading flat;
+h7 = subtightplot(4,3,7,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qF_sum_anom_posPV(:,:,:,t1))'); shading flat;
 mymap = colormap('redblue');
 colormap(h7,mymap)
 caxis(clim)
@@ -807,8 +939,8 @@ h_annot=annotation('textbox',...
     'FitBoxToText','on');
 
 
-h8 = subtightplot(4,4,8,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt_sum_anom(:,:,:,t4))'); shading flat;
+h8 = subtightplot(4,3,8,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qF_sum_anom_posPV(:,:,:,t2))'); shading flat;
 colorbar('FontSize',20,'FontName','latex','linewidth',1.5,'position',[0.93    0.074    0.0116    0.6204]);
 mymap = colormap('redblue');
 colormap(h8,mymap)
@@ -835,10 +967,8 @@ h_annot=annotation('textbox',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
-% qF_sum
-
-h9 = subtightplot(4,4,9,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t1))'); shading flat;
+h9 = subtightplot(4,3,9,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qF_sum_anom_posPV(:,:,:,t3))'); shading flat;
 mymap = colormap('redblue');
 colormap(h9,mymap)
 caxis(clim)
@@ -876,8 +1006,8 @@ h_annot=annotation('textbox',...
     'FitBoxToText','on');
 
 
-h10 = subtightplot(4,4,10,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t2))'); shading flat;
+h10 = subtightplot(4,3,10,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qB_sum_anom_posPV(:,:,:,t1))'); shading flat;
 mymap = colormap('redblue');
 colormap(h10,mymap)
 caxis(clim)
@@ -904,8 +1034,8 @@ h_annot=annotation('textbox',...
     'FitBoxToText','on');
 
 
-h11 = subtightplot(4,4,11,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t3))'); shading flat;
+h11 = subtightplot(4,3,11,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qB_sum_anom_posPV(:,:,:,t2))'); shading flat;
 mymap = colormap('redblue');
 colormap(h11,mymap)
 caxis(clim)
@@ -932,8 +1062,8 @@ h_annot=annotation('textbox',...
     'FitBoxToText','on');
 
 
-h12 = subtightplot(4,4,12,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF_sum_anom(:,:,:,t4))'); shading flat;
+h12 = subtightplot(4,3,12,gap,marg_h,marg_w);
+pcolor(YY/m1km,ZZ,squeeze(-qB_sum_anom_posPV(:,:,:,t3))'); shading flat;
 mymap = colormap('redblue');
 colormap(h12,mymap)
 caxis(clim)
@@ -958,133 +1088,133 @@ h_annot=annotation('textbox',...
     'EdgeColor','none',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
-
-% qB_sum
-h13 = subtightplot(4,4,13,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t1))'); shading flat;
-mymap = colormap('redblue');
-colormap(h13,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xlabel('y (km)','interpreter','latex')
-%title('$\int qB$','interpreter','latex')
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(m)']};
-h_annot=annotation('textbox',...
-    [0.078  0.15 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['\intq_B']};
-h_annot=annotation('textbox',...
-    [0.231  0.02 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-h14 = subtightplot(4,4,14,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t2))'); shading flat;
-mymap = colormap('redblue')
-colormap(h14,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xlabel('y (km)','interpreter','latex')
-% title('$<qB>$','interpreter','latex')
-yticklabels([])
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-ax.FontSize = fontsize;
-txt={['(n)']};
-h_annot=annotation('textbox',...
-    [0.3  0.15 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-
-h15 = subtightplot(4,4,15,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t3))'); shading flat;
-mymap = colormap('redblue');
-colormap(h15,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xlabel('y (km)','interpreter','latex')
-%title('$<qB>$','interpreter','latex')
-yticklabels([])
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-ax.FontSize = fontsize;
-txt={['(o)']};
-h_annot=annotation('textbox',...
-    [0.51  0.15 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-
-h16 = subtightplot(4,4,16,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t4))'); shading flat;
-mymap = colormap('redblue');
-colormap(h16,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xlabel('y (km)','interpreter','latex')
-%title('$<qB>$','interpreter','latex')
-yticklabels([])
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(p)']};
-h_annot=annotation('textbox',...
-    [0.72  0.15 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
+% 
+% % qB_sum
+% h13 = subtightplot(4,4,13,gap);
+% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t1))'); shading flat;
+% mymap = colormap('redblue');
+% colormap(h13,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% ylabel('z (m)','interpreter','latex')
+% xlabel('y (km)','interpreter','latex')
+% %title('$\int qB$','interpreter','latex')
+% xlim(x_lim);
+% ylim(y_lim);
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% txt={['(m)']};
+% h_annot=annotation('textbox',...
+%     [0.078  0.15 1 0.11],...
+%     'String',txt,...
+%     'FontSize',20,...
+%     'FontName','latex',...
+%     'FontWeight','Bold',...
+%     'EdgeColor','none',...
+%     'BackgroundColor','none',...
+%     'FitBoxToText','on');
+% txt={['\intq_B']};
+% h_annot=annotation('textbox',...
+%     [0.231  0.02 1 0.11],...
+%     'String',txt,...
+%     'FontSize',28,...
+%     'FontName','latex',...
+%     'EdgeColor','none',...
+%     'LineWidth',1.5,...
+%     'BackgroundColor','none',...
+%     'FitBoxToText','on');
+% 
+% h14 = subtightplot(4,4,14,gap);
+% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t2))'); shading flat;
+% mymap = colormap('redblue')
+% colormap(h14,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% xlabel('y (km)','interpreter','latex')
+% % title('$<qB>$','interpreter','latex')
+% yticklabels([])
+% xlim(x_lim);
+% ylim(y_lim);
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% ax.FontSize = fontsize;
+% txt={['(n)']};
+% h_annot=annotation('textbox',...
+%     [0.3  0.15 1 0.11],...
+%     'String',txt,...
+%     'FontSize',20,...
+%     'FontName','latex',...
+%     'FontWeight','Bold',...
+%     'EdgeColor','none',...
+%     'BackgroundColor','none',...
+%     'FitBoxToText','on');
+% 
+% 
+% h15 = subtightplot(4,4,15,gap);
+% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t3))'); shading flat;
+% mymap = colormap('redblue');
+% colormap(h15,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% xlabel('y (km)','interpreter','latex')
+% %title('$<qB>$','interpreter','latex')
+% yticklabels([])
+% xlim(x_lim);
+% ylim(y_lim);
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% ax.FontSize = fontsize;
+% txt={['(o)']};
+% h_annot=annotation('textbox',...
+%     [0.51  0.15 1 0.11],...
+%     'String',txt,...
+%     'FontSize',20,...
+%     'FontName','latex',...
+%     'FontWeight','Bold',...
+%     'EdgeColor','none',...
+%     'BackgroundColor','none',...
+%     'FitBoxToText','on');
+% 
+% 
+% h16 = subtightplot(4,4,16,gap);
+% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t4))'); shading flat;
+% mymap = colormap('redblue');
+% colormap(h16,mymap)
+% caxis(clim)
+% hold on;
+% set(gca,'fontsize',fontsize)
+% xlabel('y (km)','interpreter','latex')
+% %title('$<qB>$','interpreter','latex')
+% yticklabels([])
+% xlim(x_lim);
+% ylim(y_lim);
+% fill(x2, inBetween, c_ice,'EdgeColor','none');
+% ax = gca;
+% ax.Box = 'on';
+% ax.LineWidth = 2;
+% ax.FontName = 'latex';
+% txt={['(p)']};
+% h_annot=annotation('textbox',...
+%     [0.72  0.15 1 0.11],...
+%     'String',txt,...
+%     'FontSize',20,...
+%     'FontName','latex',...
+%     'FontWeight','Bold',...
+%     'EdgeColor','none',...
+%     'BackgroundColor','none',...
+%     'FitBoxToText','on');
 
 
 
