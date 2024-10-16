@@ -1,47 +1,5 @@
-%%% Calculating PV tendency using MITgcm model diagnostics
+ 
 
-%%% need u,b and udot, bdot (dot = tendency).
-%%% Um_Diss - U momentum tendency from Dissipation (Explicit part)
-%%% Um_Impl - U momentum tendency from Dissipation (Implicit part)
-%%% Um_Advec - U momentum tendency from Advection terms
-%%% Um_Cori - U momentum tendency from Coriolis term
-%%% Um_dPhiX - U momentum tendency from Pressure/Potential grad
-%%% USidDrag - U momentum tendency from Side Drag
-%%% ADVx_TH - Zonal Advective Flux of Pot.Temperature
-%%% DFxE_TH - Zonal Diffusive Flux of Pot.Temperature
-%%% ADVx_SLT - Zonal Advective Flux of Salinity
-%%% DFxE_SLT - Zonal Diffusive Flux of Salinity
-%%% TOTUTEND - Tendency of Zonal Component of Velocity
-%%% TOTTTEND - Tendency of Potential Temperature
-%%% TOTSTEND - Tendency of Salinity
-addpath /Users/kalyliec23/Desktop/MISSI/Analysis/
-addpath /Users/kalyliec23/Desktop/MISSI/
-% addpath /Users/Kayliec23/Desktop/analysis
-
-% Constants
-Nx = length(delX);
-Ny = length(delY);
-Nr = length(delR);
-Nt = size(T,4);
-dy = delY(1);
-dx = delX(1);
-dz = delR(1);
-Omega = 2*pi*366/365/86400;
-lat0 = -80; %%% Latitude at southern boundary
-f0 = 2*Omega*sind(lat0); %%% Coriolis parameter
-m1km = 1000;
-g = 9.81;
-rho0 = 1027;
-t1min = 60;
-t1hour = 60*t1min;
-t1day = 24*t1hour;
-dt = t1day;
-[YY,ZZ] = meshgrid(yy,zz);
-
-
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%% calculate b and bdot terms %%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% define b and its components
@@ -95,9 +53,8 @@ diffR_T(:,:,1:Nr-1,:) = (DFr_T(:,:,1:Nr-1,:) - DFr_T(:,:,2:Nr,:))./vol; diffR_T(
 bDiff = bdiffy + bdiffz;
 bDiff = iceNaN(bDiff,Nx,Ny,Nr,icetopo,zz);
 
-%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%% calculate qdot mean terms %%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%% calculate PV flux-form terms %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%% define u and its components
@@ -116,583 +73,58 @@ uvisc = viscY + viscR;
 udiss = Um_Diss + Um_ImplD;
 
 
-component = 'tot';
-
-switch component
-    case 'tend'
-        udot_comp = udot;
-        bdot_comp = bdot;
-    case 'adv'
-        udot_comp = - Um_Advec;
-        bdot_comp = bAdv;
-    case 'qF'
-        udot_comp = - udiss; % - uvisc;
-        bdot_comp = zeros(size(bAdv));
-    case 'qB'
-        udot_comp = zeros(size(bAdv));
-        bdot_comp = bDiff;
-    case 'tot'
-        udot_comp = udot - (Um_Advec + udiss);
-        bdot_comp = bdot + bAdv + bDiff;
-end
-
-
-%%% term1
-term1 = f0*(bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;    % diff in z
-term1 = (term1(:,1:Ny-1,:,:) + term1(:,2:Ny,:,:)) / 2;    % average locally in y
-term1 = interp_yz(term1);    % interpolate in z and y
-
-%%% term2
-A = diff(udot_comp,1,2); % diff in y
-A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
-A = interp_yz(A);    % interpolate in z and y
-B = (b(:,:,[1:Nr-1],:) - b(:,:,[2:Nr],:))./dz;   % diff in z
-B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
-B = interp_yz(B);    % interpolate in z and y
-term2 = -(A.*B)./dy./dz;
-
-%%% term3
-A = diff(u,1,2); % diff in y
-A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
-A = interp_yz(A);    % interpolate in z and y
-B = (bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;    % diff in z
-B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
-B = interp_yz(B);    % interpolate in z and y
-term3 = -(A.*B)./dy./dz;
-
-%%% term4
-A = (udot_comp(:,:,[1:Nr-1],:) - udot_comp(:,:,[2:Nr],:))./dz; % diff in z
-A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
-A = interp_yz(A);    % interpolate in z and y
-B = diff(b,1,2); % diff in y
-B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
-B = interp_yz(B);    % interpolate in z and y
-term4 = (A.*B)./dy./dz;
-
-%%% term5
-A = (u(:,:,[1:Nr-1],:) - u(:,:,[2:Nr],:))./dz;    % diff in z
-A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
-A = interp_yz(A);    % interpolate in z and y
-B = diff(bdot_comp,1,2);    % diff in y
-B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
-B = interp_yz(B);    % interpolate in z and y
-term5 = (A.*B)./dy./dz;
-
-%%% qdot
-switch component
-    case 'tend'
-        qdot = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qdot(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qdot');
-    %     qF = term2 + term4;
-    %     figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
-    %     qB = term1 + term3 + term5;
-    %     figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
-     case 'adv'
-        qAdv = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qAdv(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qAdv');
-    case 'qF'
-        qF = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qF(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qF');
-    case 'qB'
-        qB = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qB(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('qB');
-    case 'Du'
-        Dq = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(Dq(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('Dq');
-    case 'tot'
-        qtot = term1 + term2 + term3 + term4 + term5;
-        figure; pcolor(YY,ZZ,squeeze(qtot(:,:,:,end))'); shading interp; colorbar; colormap redblue; caxis([-5 5]*1e-13); title('tot');
-end
+qdot = PVtend(udot,bdot,u,b,f0,dz,dy);
+qAdv = PVtend(-Um_Advec,bAdv,u,b,f0,dz,dy);
+qB = PVtend(-udiss,zeros(size(udiss)),u,b,f0,dz,dy);
+qF = PVtend(zeros(size(bDiff)),bDiff,u,b,f0,dz,dy);
+qtot = PVtend(udot - (Um_Advec + udiss),bdot + bAdv + bDiff,u,b,f0,dz,dy);
 
 %%% Calculate Q and take time derivative
 q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0);
 q = iceNaN(q,Nx,Ny,Nr,icetopo,zz);
 qt = diff(q,1,4)./dt;
 
-%%
-scrsz = get(0,'ScreenSize');
-fontsize = 22;
-
-framepos = [0 scrsz(4)/2 scrsz(3) scrsz(4)];
-plotloc = [0.17 0.18 0.62 0.7];
-handle = figure(30);
-set(handle,'Position',framepos);
-clf;
-set(gcf,'Color','w');
-gap = [0.02 0.015];
-clim = [-1 1]*1e-13;
-x_lim = [15 25];
-y_lim = [-330 -200];
-curve1 = icetopo;
-curve2 = zeros(1,length(curve1));
-x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
-x2 = [x1, fliplr(x1)];
-inBetween = [curve1, fliplr(curve2)];
-c_ice = [0.9 0.9 0.9];
-
-h1 = subplot(3,2,1);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,end))'); shading flat;
-mymap = colormap('redblue');
-colormap(h1,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-title('qt')
-
-h2 = subplot(3,2,2);
-pcolor(YY/m1km,ZZ,squeeze(qF(:,:,:,end))'); shading flat;
-mymap = colormap('redblue');
-colormap(h2,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-title('qF')
-
-h3 = subplot(3,2,3);
-pcolor(YY/m1km,ZZ,squeeze(qB(:,:,:,end))'); shading flat;
-mymap = colormap('redblue');
-colormap(h3,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-title('qB')
-
-h4 = subplot(3,2,4);
-pcolor(YY/m1km,ZZ,squeeze(qAdv(:,:,:,end))'); shading flat;
-mymap = colormap('redblue');
-colormap(h4,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-title('qAdv')
-
-% h5 = subplot(3,2,5);
-% pcolor(YY/m1km,ZZ,squeeze(qNC(:,:,:,end))'); shading flat;
-% mymap = colormap('redblue');
-% colormap(h5,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% ylabel('z (m)','interpreter','latex')
-% xticklabels([])
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% title('qDiss')
-% 
-% h6 = subplot(3,2,6);
-% pcolor(YY/m1km,ZZ,squeeze(qtot(:,:,:,end))'); shading flat;
-% mymap = colormap('redblue');
-% colormap(h6,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% ylabel('z (m)','interpreter','latex')
-% xticklabels([])
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% title('qtot')
-
-
-
-
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%% Figures q components %%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-addpath /Users/Kayliec23/Desktop/plottingKit/
-
-scrsz = get(0,'ScreenSize');
-fontsize = 22;
-
-framepos = [0 scrsz(4)/2 scrsz(3) scrsz(4)];
-plotloc = [0.17 0.18 0.62 0.7];
-handle = figure(30);
-set(handle,'Position',framepos);
-clf;
-set(gcf,'Color','w');
-t1 = 2; t2 = 3; t3 = 20; t4 = 60;
-gap = [0.02 0.015];
-clim = [-1 1]*1e-14;
-x_lim = [15 25];
-y_lim = [-330 -200];
-curve1 = icetopo;
-curve2 = zeros(1,length(curve1));
-x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
-x2 = [x1, fliplr(x1)];
-inBetween = [curve1, fliplr(curve2)];
-c_ice = [0.9 0.9 0.9];
-
-% qt
-h1 = subtightplot(4,2,1,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t1))'); shading flat;
-mymap = colormap('redblue');
-colormap(h1,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(a)']};
-h_annot=annotation('textbox',...
-    [0.078  0.81 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_t']};
-h_annot=annotation('textbox',...
-    [0.431  0.68 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-h2 = subtightplot(4,2,2,gap);
-pcolor(YY/m1km,ZZ,squeeze(qt(:,:,:,t2))'); shading flat;
-mymap = colormap('redblue');
-colormap(h2,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xticklabels([]);
-yticklabels([])
-title(['t = ',num2str(t2),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(e)']};
-h_annot=annotation('textbox',...
-    [0.51  0.81 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_t']};
-h_annot=annotation('textbox',...
-    [0.87  0.68 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-% qAdv
-
-h3 = subtightplot(4,2,3,gap);
-pcolor(YY/m1km,ZZ,squeeze(qAdv(:,:,:,t1))'); shading flat;
-mymap = colormap('redblue');
-colormap(h3,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(b)']};
-h_annot=annotation('textbox',...
-    [0.078  0.58 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_{adv}']};
-h_annot=annotation('textbox',...
-    [0.431  0.465 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-h4 = subtightplot(4,2,4,gap);
-pcolor(YY/m1km,ZZ,squeeze(qAdv(:,:,:,t2))'); shading flat;
-mymap = colormap('redblue');
-colormap(h4,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xticklabels([])
-yticklabels([])
-%title(['t = ',num2str(t2),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(f)']};
-h_annot=annotation('textbox',...
-    [0.51  0.58 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_{adv}']};
-h_annot=annotation('textbox',...
-    [0.87  0.465 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-
-% qB
-h5 = subtightplot(4,2,5,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB(:,:,:,t1))'); shading flat;
-mymap = colormap('redblue');
-colormap(h5,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
-xticklabels([])
-%title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(c)']};
-h_annot=annotation('textbox',...
-    [0.078  0.36 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_B']};
-h_annot=annotation('textbox',...
-    [0.431  0.24 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-h6 = subtightplot(4,2,6,gap);
-pcolor(YY/m1km,ZZ,squeeze(qB(:,:,:,t2))'); shading flat;
-mymap = colormap('redblue');
-colormap(h6,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xticklabels([])
-yticklabels([])
-%title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(g)']};
-h_annot=annotation('textbox',...
-    [0.51  0.36 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_B']};
-h_annot=annotation('textbox',...
-    [0.87  0.24 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-% qF
-
-h7 = subtightplot(4,2,7,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF(:,:,:,t1))'); shading flat;
-mymap = colormap('redblue');
-colormap(h7,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xlabel('y (km)','interpreter','latex')
-%title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(d)']};
-h_annot=annotation('textbox',...
-    [0.078  0.14 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_F']};
-h_annot=annotation('textbox',...
-    [0.431  0.03 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-h8 = subtightplot(4,2,8,gap);
-pcolor(YY/m1km,ZZ,squeeze(qF(:,:,:,t2))'); shading flat;
-mymap = colormap('redblue');
-colormap(h6,mymap)
-caxis(clim)
-hold on;
-set(gca,'fontsize',fontsize)
-xlabel('y (km)','interpreter','latex')
-yticklabels([])
-%title(['t = ',num2str(t1),' day'],'interpreter','latex','fontsize',28)
-xlim(x_lim);
-ylim(y_lim);
-fill(x2, inBetween, c_ice,'EdgeColor','none');
-ax = gca;
-ax.Box = 'on';
-ax.LineWidth = 2;
-ax.FontName = 'latex';
-txt={['(h)']};
-h_annot=annotation('textbox',...
-    [0.51  0.14 1 0.11],...
-    'String',txt,...
-    'FontSize',20,...
-    'FontName','latex',...
-    'FontWeight','Bold',...
-    'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['q_F']};
-h_annot=annotation('textbox',...
-    [0.87  0.03 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-
-
-%%
+% calculate cumulative sum anomaly
 qdot_sum = cumsum(qdot,4).*dt; qdot_sum_anom = qdot_sum - qdot(:,:,:,1);
 qt_sum = cumsum(qt,4).*dt; qt_sum_anom = qt_sum - qt(:,:,:,1);
 q_sum = cumsum(q,4).*dt; q_sum_anom = q_sum - q(:,:,:,1);
-fq_sum = cumsum(f0*q,4).*dt; fq_sum_anom = fq_sum - fq_sum(:,:,:,1);
 qB_sum = cumsum(qB,4).*dt; qB_sum_anom = qB_sum - qB(:,:,:,1);
 qF_sum = cumsum(qF,4).*dt; qF_sum_anom = qF_sum - qF(:,:,:,1);
 qAdv_sum = cumsum(qAdv,4).*dt; qAdv_sum_anom = qAdv_sum - qAdv(:,:,:,1);
-qt_res_sum =  cumsum(qt-qdot,4);
+% calculate cumulative sum anomaly - positive regions only
 qB_sum_anom_pos = posVal(qB_sum_anom);
 qF_sum_anom_pos = posVal(qF_sum_anom);
 qt_sum_anom_pos = posVal(qt_sum_anom);
 qAdv_sum_anom_pos = posVal(qAdv_sum_anom);
-
-
-
-%%
+% calculate cumulative sum anomaly - regions of positive qt_sum_anom only
 qB_sum_anom_posPV = posPVval(qB_sum_anom,qt_sum_anom);
 qF_sum_anom_posPV = posPVval(qF_sum_anom,qt_sum_anom);
 qt_sum_anom_posPV = posPVval(qt_sum_anom,qt_sum_anom);
 qAdv_sum_anom_posPV = posPVval(qAdv_sum_anom,qt_sum_anom);
-qB_sum_anom_posPV_pos = posVal(qB_sum_anom_posPV);
-qF_sum_anom_posPV_pos = posVal(qF_sum_anom_posPV);
-qAdv_sum_anom_posPV_pos = posVal(qAdsv_sum_anom_posPV);
-qt_sum_anom_posPV_pos = posVal(qt_sum_anom_posPV);
-%%
+
+%%% Calculate Q and take time derivative
+q = calculateQ(S,T,U,V,W,Nx,Ny,Nr,Nt,dy,dz,g,rho0,f0);
+q = iceNaN(q,Nx,Ny,Nr,icetopo,zz);
+qt = diff(q,1,4)./dt;
+
+% calculate cumulative sum anomaly
+qdot_sum = cumsum(qdot,4).*dt; qdot_sum_anom = qdot_sum - qdot(:,:,:,1);
+qt_sum = cumsum(qt,4).*dt; qt_sum_anom = qt_sum - qt(:,:,:,1);
+q_sum = cumsum(q,4).*dt; q_sum_anom = q_sum - q(:,:,:,1);
+qB_sum = cumsum(qB,4).*dt; qB_sum_anom = qB_sum - qB(:,:,:,1);
+qF_sum = cumsum(qF,4).*dt; qF_sum_anom = qF_sum - qF(:,:,:,1);
+qAdv_sum = cumsum(qAdv,4).*dt; qAdv_sum_anom = qAdv_sum - qAdv(:,:,:,1);
+% calculate cumulative sum anomaly - positive regions only
+qB_sum_anom_pos = posVal(qB_sum_anom);
+qF_sum_anom_pos = posVal(qF_sum_anom);
+qt_sum_anom_pos = posVal(qt_sum_anom);
+qAdv_sum_anom_pos = posVal(qAdv_sum_anom);
+% calculate cumulative sum anomaly - regions of positive qt_sum_anom only
+qB_sum_anom_posPV = posPVval(qB_sum_anom,qt_sum_anom);
+qF_sum_anom_posPV = posPVval(qF_sum_anom,qt_sum_anom);
+qt_sum_anom_posPV = posPVval(qt_sum_anom,qt_sum_anom);
+qAdv_sum_anom_posPV = posPVval(qAdv_sum_anom,qt_sum_anom);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% Figures fq components %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -707,13 +139,21 @@ handle = figure(30);
 set(handle,'Position',framepos);
 clf;
 set(gcf,'Color','w');
-t1 = 2; t2 = 3; t3 = 60;
+t1 = 2; t2 = 4; t3 = 7;
 gap = [0.03 0.04];
-marg_h = [0.05 0.075];
+marg_h = [0.065 0.075];
 marg_w = [0.075 0.1];
-clim = [-5 5]*1e-10;
-x_lim = [15 25];
-y_lim = [-330 -200];
+clim = [-1 1]*1e-10;
+slope_exp = 'linear';
+switch slope_exp
+    case 'linear'
+        x_lim = [15 25];
+        y_lim = [-330 -200];
+    case 'tanh'
+        x_lim =  [10 20]; %[0 7];
+        y_lim = [-250 -90]; %[-500 -300];
+end
+
 curve1 = icetopo;
 curve2 = zeros(1,length(curve1));
 x1 = yy/m1km; %linspace(xlim_min, xlim_max,length(curve1));
@@ -752,7 +192,7 @@ h_annot=annotation('textbox',...
     'FitBoxToText','on');
 txt={['q_t']};
 h_annot=annotation('textbox',...
-    [0.231  0.68 1 0.11],...
+    [0.28  0.68 1 0.11],...
     'String',txt,...
     'FontSize',28,...
     'FontName','latex',...
@@ -780,7 +220,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(b)']};
 h_annot=annotation('textbox',...
-    [0.29  0.81 1 0.11],...
+    [0.368  0.81 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -808,7 +248,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(c)']};
 h_annot=annotation('textbox',...
-    [0.51  0.81 1 0.11],...
+    [0.658  0.81 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -827,7 +267,7 @@ hold on;
 set(gca,'fontsize',fontsize)
 %title(['t = ',num2str(t4),' day'],'interpreter','latex','fontsize',28)
 xticklabels([])
-yticklabels([])
+ylabel('z (m)','interpreter','latex')
 %title('$q_t$','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -837,11 +277,21 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(d)']};
 h_annot=annotation('textbox',...
-    [0.72  0.81 1 0.11],...
+    [0.078  0.58 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
     'FontWeight','Bold',...
+    'EdgeColor','none',...
+    'BackgroundColor','none',...
+    'FitBoxToText','on');
+txt={['q_{adv}']};
+h_annot=annotation('textbox',...
+    [0.28  0.46 1 0.11],...
+    'String',txt,...
+    'FontSize',28,...
+    'FontName','latex',...
+    'FontWeight','normal',...
     'EdgeColor','none',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
@@ -854,7 +304,7 @@ caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 xticklabels([])
-ylabel('z (m)','interpreter','latex')
+yticklabels([])
 %title('$\int q_t$','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -865,22 +315,12 @@ ax.LineWidth = 2;
 ax.FontName = 'latex';
 txt={['(e)']};
 h_annot=annotation('textbox',...
-    [0.078  0.59 1 0.11],...
+    [0.368  0.58 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
     'FontWeight','Bold',...
     'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['\intq_t']};
-h_annot=annotation('textbox',...
-    [0.231  0.46 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
@@ -902,7 +342,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(f)']};
 h_annot=annotation('textbox',...
-    [0.3  0.59 1 0.11],...
+    [0.658  0.58 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -919,7 +359,7 @@ caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 xticklabels([])
-yticklabels([])
+ylabel('z (m)','interpreter','latex')
 %title('$<q_t>$','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -929,11 +369,21 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(g)']};
 h_annot=annotation('textbox',...
-    [0.51  0.59 1 0.11],...
+    [0.078  0.36 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
     'FontWeight','Bold',...
+    'EdgeColor','none',...
+    'BackgroundColor','none',...
+    'FitBoxToText','on');
+txt={['q_F']};
+h_annot=annotation('textbox',...
+    [0.28  0.24 1 0.11],...
+    'String',txt,...
+    'FontSize',28,...
+    'FontName','latex',...
+    'FontWeight','normal',...
     'EdgeColor','none',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
@@ -958,7 +408,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(h)']};
 h_annot=annotation('textbox',...
-    [0.72  0.59 1 0.11],...
+    [0.368  0.36 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -974,8 +424,8 @@ colormap(h9,mymap)
 caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
-ylabel('z (m)','interpreter','latex')
 xticklabels([])
+yticklabels([])
 %title('$\int qF$','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -986,22 +436,12 @@ ax.LineWidth = 2;
 ax.FontName = 'latex';
 txt={['(i)']};
 h_annot=annotation('textbox',...
-    [0.078  0.37 1 0.11],...
+    [0.658  0.36 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
     'FontWeight','Bold',...
     'EdgeColor','none',...
-    'BackgroundColor','none',...
-    'FitBoxToText','on');
-txt={['\intq_F']};
-h_annot=annotation('textbox',...
-    [0.231  0.24 1 0.11],...
-    'String',txt,...
-    'FontSize',28,...
-    'FontName','latex',...
-    'EdgeColor','none',...
-    'LineWidth',1.5,...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
@@ -1013,8 +453,8 @@ colormap(h10,mymap)
 caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
-yticklabels([])
-xticklabels([])
+ylabel('z (m)','interpreter','latex')
+xlabel('y (km)')
 %title('$\int qF $','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -1024,12 +464,22 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(j)']};
 h_annot=annotation('textbox',...
-    [0.3  0.37 1 0.11],...
+    [0.078  0.14 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
     'FontWeight','Bold',...
     'EdgeColor','none',...
+    'BackgroundColor','none',...
+    'FitBoxToText','on');
+txt={['q_B']};
+h_annot=annotation('textbox',...
+    [0.28  0.02 1 0.11],...
+    'String',txt,...
+    'FontSize',28,...
+    'FontName','latex',...
+    'EdgeColor','none',...
+    'LineWidth',1.5,...
     'BackgroundColor','none',...
     'FitBoxToText','on');
 
@@ -1042,7 +492,7 @@ caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 yticklabels([])
-xticklabels([])
+xlabel('y (km)')
 %title('$\int qF $','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -1052,7 +502,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(k)']};
 h_annot=annotation('textbox',...
-    [0.51  0.37 1 0.11],...
+    [0.368  0.14 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -1070,7 +520,7 @@ caxis(clim)
 hold on;
 set(gca,'fontsize',fontsize)
 yticklabels([])
-xticklabels([])
+xlabel('y (km)')
 %title('$\int qF $','interpreter','latex')
 xlim(x_lim);
 ylim(y_lim);
@@ -1080,7 +530,7 @@ ax.Box = 'on';
 ax.LineWidth = 2;
 txt={['(l)']};
 h_annot=annotation('textbox',...
-    [0.72  0.37 1 0.11],...
+    [0.658  0.14 1 0.11],...
     'String',txt,...
     'FontSize',20,...
     'FontName','latex',...
@@ -1088,134 +538,6 @@ h_annot=annotation('textbox',...
     'EdgeColor','none',...
     'BackgroundColor','none',...
     'FitBoxToText','on');
-% 
-% % qB_sum
-% h13 = subtightplot(4,4,13,gap);
-% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t1))'); shading flat;
-% mymap = colormap('redblue');
-% colormap(h13,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% ylabel('z (m)','interpreter','latex')
-% xlabel('y (km)','interpreter','latex')
-% %title('$\int qB$','interpreter','latex')
-% xlim(x_lim);
-% ylim(y_lim);
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% txt={['(m)']};
-% h_annot=annotation('textbox',...
-%     [0.078  0.15 1 0.11],...
-%     'String',txt,...
-%     'FontSize',20,...
-%     'FontName','latex',...
-%     'FontWeight','Bold',...
-%     'EdgeColor','none',...
-%     'BackgroundColor','none',...
-%     'FitBoxToText','on');
-% txt={['\intq_B']};
-% h_annot=annotation('textbox',...
-%     [0.231  0.02 1 0.11],...
-%     'String',txt,...
-%     'FontSize',28,...
-%     'FontName','latex',...
-%     'EdgeColor','none',...
-%     'LineWidth',1.5,...
-%     'BackgroundColor','none',...
-%     'FitBoxToText','on');
-% 
-% h14 = subtightplot(4,4,14,gap);
-% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t2))'); shading flat;
-% mymap = colormap('redblue')
-% colormap(h14,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% xlabel('y (km)','interpreter','latex')
-% % title('$<qB>$','interpreter','latex')
-% yticklabels([])
-% xlim(x_lim);
-% ylim(y_lim);
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% ax.FontSize = fontsize;
-% txt={['(n)']};
-% h_annot=annotation('textbox',...
-%     [0.3  0.15 1 0.11],...
-%     'String',txt,...
-%     'FontSize',20,...
-%     'FontName','latex',...
-%     'FontWeight','Bold',...
-%     'EdgeColor','none',...
-%     'BackgroundColor','none',...
-%     'FitBoxToText','on');
-% 
-% 
-% h15 = subtightplot(4,4,15,gap);
-% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t3))'); shading flat;
-% mymap = colormap('redblue');
-% colormap(h15,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% xlabel('y (km)','interpreter','latex')
-% %title('$<qB>$','interpreter','latex')
-% yticklabels([])
-% xlim(x_lim);
-% ylim(y_lim);
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% ax.FontSize = fontsize;
-% txt={['(o)']};
-% h_annot=annotation('textbox',...
-%     [0.51  0.15 1 0.11],...
-%     'String',txt,...
-%     'FontSize',20,...
-%     'FontName','latex',...
-%     'FontWeight','Bold',...
-%     'EdgeColor','none',...
-%     'BackgroundColor','none',...
-%     'FitBoxToText','on');
-% 
-% 
-% h16 = subtightplot(4,4,16,gap);
-% pcolor(YY/m1km,ZZ,squeeze(qB_sum_anom(:,:,:,t4))'); shading flat;
-% mymap = colormap('redblue');
-% colormap(h16,mymap)
-% caxis(clim)
-% hold on;
-% set(gca,'fontsize',fontsize)
-% xlabel('y (km)','interpreter','latex')
-% %title('$<qB>$','interpreter','latex')
-% yticklabels([])
-% xlim(x_lim);
-% ylim(y_lim);
-% fill(x2, inBetween, c_ice,'EdgeColor','none');
-% ax = gca;
-% ax.Box = 'on';
-% ax.LineWidth = 2;
-% ax.FontName = 'latex';
-% txt={['(p)']};
-% h_annot=annotation('textbox',...
-%     [0.72  0.15 1 0.11],...
-%     'String',txt,...
-%     'FontSize',20,...
-%     'FontName','latex',...
-%     'FontWeight','Bold',...
-%     'EdgeColor','none',...
-%     'BackgroundColor','none',...
-%     'FitBoxToText','on');
-
 
 
 
@@ -1241,30 +563,22 @@ dd = mean(d(Ns,:),1); dd = dd-dd(1);
 [D,NT] = meshgrid(dd,[1:Nt-1]);
 
 
-qdot_mean = plume_mean(qdot,Nd,Ns,icetopo,zz,dz);
-term1_mean = plume_mean(term1,Nd,Ns,icetopo,zz,dz);
-term2_mean = plume_mean(term2,Nd,Ns,icetopo,zz,dz);
-term3_mean = plume_mean(term3,Nd,Ns,icetopo,zz,dz);
-qvert_dot_mean = term3_mean+term2_mean;
-term4_mean = plume_mean(term4,Nd,Ns,icetopo,zz,dz);
-term5_mean = plume_mean(term5,Nd,Ns,icetopo,zz,dz);
-qbc_dot_mean = term4_mean+term5_mean;
-bdot_mean = plume_mean(bdot,Nd,Ns,icetopo,zz,dz);
-qt_mean = plume_mean(qt,Nd,Ns,icetopo,zz,dz);
-q_mean = plume_mean(q,Nd,Ns,icetopo,zz,dz);
-qB_mean = plume_mean(qB,Nd,Ns,icetopo,zz,dz);
+qdot_mean = plume_mean(qt,Nd,Ns,icetopo,zz,dz);
 qF_mean = plume_mean(qF,Nd,Ns,icetopo,zz,dz);
+qB_mean = plume_mean(qB,Nd,Ns,icetopo,zz,dz);
 qAdv_mean = plume_mean(qAdv,Nd,Ns,icetopo,zz,dz);
+bdot_mean = plume_mean(bdot,Nd,Ns,icetopo,zz,dz);
+q_mean = plume_mean(q,Nd,Ns,icetopo,zz,dz);
+qt_sum_anom_mean = plume_mean(qt_sum_anom,Nd,Ns,icetopo,zz,dz);
 qF_sum_anom_mean = plume_mean(qF_sum_anom,Nd,Ns,icetopo,zz,dz);
 qB_sum_anom_mean = plume_mean(qB_sum_anom,Nd,Ns,icetopo,zz,dz);
-qt_sum_anom_mean = plume_mean(qt_sum_anom,Nd,Ns,icetopo,zz,dz);
-qdot_sum_anom_mean = plume_mean(qdot_sum_anom,Nd,Ns,icetopo,zz,dz);
+qAdv_sum_anom_mean = plume_mean(qAdv_sum_anom,Nd,Ns,icetopo,zz,dz);
+q_sum_anom_mean = plume_mean(q_sum_anom,Nd,Ns,icetopo,zz,dz);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Enstrophy %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%% Total, mean and perturbation enstrophies
 E = plume_mean(0.5*q.^2,Nd,Ns,icetopo,zz,dz);
 E_mean = 0.5*q_mean.^2;
@@ -1288,82 +602,204 @@ EqF = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*qF,Nd,Ns,icetopo,zz,dz);
 EqF_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*qF_mean;
 EqF_pert = EqF - EqF_mean;
 
-Eterm1 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term1,Nd,Ns,icetopo,zz,dz);
-Eterm1_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term1_mean;
-Eterm1_pert = Eterm1 - Eterm1_mean;
+EqAdv = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*qAdv,Nd,Ns,icetopo,zz,dz);
+EqAdv_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*qAdv_mean;
+EqAdv_pert = EqAdv - EqAdv_mean;
 
-Eterm2 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term2,Nd,Ns,icetopo,zz,dz);
-Eterm2_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term2_mean;
-Eterm2_pert = Eterm2 - Eterm2_mean;
+% Eterm1 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term1,Nd,Ns,icetopo,zz,dz);
+% Eterm1_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term1_mean;
+% Eterm1_pert = Eterm1 - Eterm1_mean;
+% 
+% Eterm2 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term2,Nd,Ns,icetopo,zz,dz);
+% Eterm2_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term2_mean;
+% Eterm2_pert = Eterm2 - Eterm2_mean;
+% 
+% Eterm3 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term3,Nd,Ns,icetopo,zz,dz);
+% Eterm3_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term3_mean;
+% Eterm3_pert = Eterm3 - Eterm3_mean;
+% 
+% Eterm4 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term4,Nd,Ns,icetopo,zz,dz);
+% Eterm4_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term4_mean;
+% Eterm4_pert = Eterm4 - Eterm4_mean;
+% 
+% Eterm5 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term5,Nd,Ns,icetopo,zz,dz);
+% Eterm5_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term5_mean;
+% Eterm5_pert = Eterm5 - Eterm5_mean;
 
-Eterm3 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term3,Nd,Ns,icetopo,zz,dz);
-Eterm3_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term3_mean;
-Eterm3_pert = Eterm3 - Eterm3_mean;
-
-Eterm4 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term4,Nd,Ns,icetopo,zz,dz);
-Eterm4_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term4_mean;
-Eterm4_pert = Eterm4 - Eterm4_mean;
-
-Eterm5 = plume_mean(0.5*(q(:,:,:,1:end-1)+q(:,:,:,2:end)).*term5,Nd,Ns,icetopo,zz,dz);
-Eterm5_mean = 0.5*(q_mean(:,1:end-1)+q_mean(:,2:end)).*term5_mean;
-Eterm5_pert = Eterm5 - Eterm5_mean;
-
-%%
-%%% Quick plot of Q snapshot
-figure(1);pcolor(YY',ZZ'-(YY'-4e4)*s,squeeze(q(1,:,:,120)));shading flat;colorbar;caxis([-1 1]*3e-8);colormap redblue; set(gca,'YLim',[-20 0]);
-
-figure(2);pcolor(NT,D,sqrt(E_pert(:,2:end))'-abs(q_mean(:,2:end))');colorbar;shading flat;caxis([-1 1]*1e-7);colormap redblue;
-
-figure(3);pcolor(NT,D,E_mean(:,2:end)');colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(4);pcolor(NT,D,E_pert(:,2:end)');colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(5);pcolor(NT,D,Et_mean');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
-figure(6);pcolor(NT,D,Et_pert');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
-figure(7);pcolor(NT,D,Et_pert'-Et_mean');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
-
-figure(8);pcolor(NT,D,cumsum(Eqdot_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(9);pcolor(NT,D,cumsum(Eqdot_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(10);pcolor(NT,D,cumsum(Eterm1_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(11);pcolor(NT,D,cumsum(Eterm1_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(12);pcolor(NT,D,cumsum(Eterm2_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(13);pcolor(NT,D,cumsum(Eterm2_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(14);pcolor(NT,D,cumsum(Eterm3_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(15);pcolor(NT,D,cumsum(Eterm3_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(16);pcolor(NT,D,cumsum(Eterm4_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(17);pcolor(NT,D,cumsum(Eterm4_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(18);pcolor(NT,D,cumsum(Eterm5_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(19);pcolor(NT,D,cumsum(Eterm5_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(20);pcolor(NT,D,cumsum(EqB_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(21);pcolor(NT,D,cumsum(EqB_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-figure(22);pcolor(NT,D,cumsum(EqF_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-figure(23);pcolor(NT,D,cumsum(EqF_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
-
-%%
 %%% Variance ratio budget terms
 ENqdot = Eqdot_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eqdot_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
 ENqB = EqB_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*EqB_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
 ENqF = EqF_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*EqF_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-ENterm1 = Eterm1_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm1_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-ENterm2 = Eterm2_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm2_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-ENterm3 = Eterm3_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm3_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-ENterm4 = Eterm4_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm4_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-ENterm5 = Eterm5_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm5_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
-figure(24);pcolor(NT,D,(E_pert(:,2:end)'./E_mean(:,2:end)'));colorbar;shading flat;caxis([-10 10]);colormap redblue; title('E')
-figure(25);pcolor(NT,D,cumsum(ENqdot',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qt');
-figure(26);pcolor(NT,D,cumsum(ENqB',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qB');
-figure(27);pcolor(NT,D,cumsum(ENqF',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qF');
-figure(28);pcolor(NT,D,cumsum(ENterm1',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term1');
-figure(29);pcolor(NT,D,cumsum(ENterm2',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term2');
-figure(30);pcolor(NT,D,cumsum(ENterm3',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term3');
-figure(31);pcolor(NT,D,cumsum(ENterm4',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term4');
-figure(32);pcolor(NT,D,cumsum(ENterm5',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term5');
+ENqAdv = EqAdv_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*EqAdv_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+
+% ENterm1 = Eterm1_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm1_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+% ENterm2 = Eterm2_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm2_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+% ENterm3 = Eterm3_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm3_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+% ENterm4 = Eterm4_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm4_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+% ENterm5 = Eterm5_pert./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))) - (0.5*(E_pert(:,1:end-1)+E_pert(:,2:end))).*Eterm5_mean./(0.5*(E_mean(:,1:end-1)+E_mean(:,2:end))).^2;
+
+%%
+
+scrsz = get(0,'ScreenSize');
+fontsize = 22;
+
+framepos = [0 scrsz(4)/2 scrsz(3) scrsz(4)];
+plotloc = [0.17 0.18 0.62 0.7];
+handle = figure(11);
+set(handle,'Position',framepos);
+clf;
+set(gcf,'Color','w');
+gap = [0.05 0.02];
+marg_h = [0.065 0.065];
+marg_w = [0.04 0.03];
+
+subtightplot(3,6,1,gap,marg_h,marg_w)
+pcolor(YY',ZZ'-(YY'-4e4)*s,squeeze(q(1,:,:,120)));
+shading flat;colorbar;caxis([-1 1]*3e-8);colormap redblue; set(gca,'YLim',[-20 0]);
+title('snapshot of q','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,2,gap,marg_h,marg_w)
+pcolor(NT,D,sqrt(E_pert(:,2:end))'-abs(q_mean(:,2:end))');
+colorbar; shading flat; caxis([-1 1]*1e-8); colormap redblue;
+xticklabels([]); hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E^{\prime} - |\bar{q}|$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,3,gap,marg_h,marg_w)
+pcolor(NT,D,E_mean(:,2:end)');
+colorbar;shading flat;caxis([-1 1]*1e-16);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$\bar{E}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,4,gap,marg_h,marg_w)
+pcolor(NT,D,E_pert(:,2:end)');
+colorbar;shading flat;caxis([-1 1]*1e-16);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E^{\prime}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,5,gap,marg_h,marg_w)
+pcolor(NT,D,(E_pert(:,2:end)'./E_mean(:,2:end)'));
+colorbar;shading flat;caxis([-10 10]);colormap redblue;
+yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E^{\prime}/\bar{E}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,6,gap,marg_h,marg_w)
+pcolor(NT,D,Et_mean');
+colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$\bar{E_t}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,7,gap,marg_h,marg_w);
+pcolor(NT,D,Et_pert');colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E_t^{\prime}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,8,gap,marg_h,marg_w)
+pcolor(NT,D,Et_pert'-Et_mean');
+colorbar;shading flat;caxis([-1 1]*1e-21);colormap redblue;
+xticklabels([]); hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E_t^{\prime} - \bar{E_t}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,9,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqB_mean',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$\bar{E_{qB}}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,10,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqB_pert',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E_{qB}^{\prime}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,11,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqF_mean',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$\bar{E_{qF}}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,12,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqF_pert',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E_{qF}^{\prime}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,13,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqAdv_mean',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+xticklabels([]); yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$\bar{E_{qAdv}}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,14,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(EqAdv_pert',1)*dt);
+colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$E_{qAdv}^{\prime}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,15,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(ENqdot',1)*dt);
+colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qt');
+yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$EN_{q_t}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,16,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(ENqB',1)*dt);
+colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qB');
+yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$EN_{qB}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,17,gap,marg_h,marg_w);
+pcolor(NT,D,cumsum(ENqF',1)*dt);
+colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qF');
+yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$EN_{qF}$','interpreter','latex','fontsize',20)
+
+subtightplot(3,6,18,gap,marg_h,marg_w)
+pcolor(NT,D,cumsum(ENqAdv',1)*dt);
+colorbar;shading flat;caxis([-10 10]);colormap redblue; title('qAdv');
+yticklabels([]);hold on;
+plot([1:Nt],6*ones(length([1:Nt])),'linewidth',1,'color','k'); plot([1:Nt],10*ones(length([1:Nt])),'linewidth',1,'color','k');
+title('$EN_{qAdv}$','interpreter','latex','fontsize',20)
+
+% figure(8);pcolor(NT,D,cumsum(Eqdot_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(9);pcolor(NT,D,cumsum(Eqdot_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% 
+% figure(10);pcolor(NT,D,cumsum(Eterm1_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(11);pcolor(NT,D,cumsum(Eterm1_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% 
+% figure(12);pcolor(NT,D,cumsum(Eterm2_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(13);pcolor(NT,D,cumsum(Eterm2_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% 
+% figure(14);pcolor(NT,D,cumsum(Eterm3_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(15);pcolor(NT,D,cumsum(Eterm3_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% 
+% figure(16);pcolor(NT,D,cumsum(Eterm4_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(17);pcolor(NT,D,cumsum(Eterm4_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% 
+% figure(18);pcolor(NT,D,cumsum(Eterm5_mean',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+% figure(19);pcolor(NT,D,cumsum(Eterm5_pert',1)*dt);colorbar;shading flat;caxis([-1 1]*1e-15);colormap redblue;
+
+% figure(28);pcolor(NT,D,cumsum(ENterm1',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term1');
+% figure(29);pcolor(NT,D,cumsum(ENterm2',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term2');
+% figure(30);pcolor(NT,D,cumsum(ENterm3',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term3');
+% figure(31);pcolor(NT,D,cumsum(ENterm4',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term4');
+% figure(32);pcolor(NT,D,cumsum(ENterm5',1)*dt);colorbar;shading flat;caxis([-10 10]);colormap redblue; title('term5');
+
 
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1694,4 +1130,53 @@ for j = 1:Ny
         end
     end
 end
+end
+
+function AA = PVtend(udot_comp,bdot_comp,u,b,f0,dz,dy)
+Ny = size(u,2);
+Nr = size(u,3);
+Nt = size(u,4);
+
+%%% term1
+term1 = f0*(bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;    % diff in z
+term1 = (term1(:,1:Ny-1,:,:) + term1(:,2:Ny,:,:)) / 2;    % average locally in y
+term1 = interp_yz(term1);    % interpolate in z and y
+
+%%% term2
+A = diff(udot_comp,1,2); % diff in y
+A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
+A = interp_yz(A);    % interpolate in z and y
+B = (b(:,:,[1:Nr-1],:) - b(:,:,[2:Nr],:))./dz;   % diff in z
+B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
+B = interp_yz(B);    % interpolate in z and y
+term2 = -(A.*B)./dy./dz;
+
+%%% term3
+A = diff(u,1,2); % diff in y
+A = (A(:,:,1:Nr-1,:) + A(:,:,2:Nr,:)) / 2; % averaging locally in z
+A = interp_yz(A);    % interpolate in z and y
+B = (bdot_comp(:,:,[1:Nr-1],:) - bdot_comp(:,:,[2:Nr],:))./dz;    % diff in z
+B = (B(:,1:Ny-1,:,:) + B(:,2:Ny,:,:)) / 2;    % average locally in y
+B = interp_yz(B);    % interpolate in z and y
+term3 = -(A.*B)./dy./dz;
+
+%%% term4
+A = (udot_comp(:,:,[1:Nr-1],:) - udot_comp(:,:,[2:Nr],:))./dz; % diff in z
+A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
+A = interp_yz(A);    % interpolate in z and y
+B = diff(b,1,2); % diff in y
+B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
+B = interp_yz(B);    % interpolate in z and y
+term4 = (A.*B)./dy./dz;
+
+%%% term5
+A = (u(:,:,[1:Nr-1],:) - u(:,:,[2:Nr],:))./dz;    % diff in z
+A = (A(:,1:Ny-1,:,:) + A(:,2:Ny,:,:)) / 2;    % average locally in y
+A = interp_yz(A);    % interpolate in z and y
+B = diff(bdot_comp,1,2);    % diff in y
+B = (B(:,:,1:Nr-1,:) + B(:,:,2:Nr,:)) / 2;    % average locally in z
+B = interp_yz(B);    % interpolate in z and y
+term5 = (A.*B)./dy./dz;
+
+AA = term1 + term2 + term3 + term4 + term5;
 end
