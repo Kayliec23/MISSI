@@ -75,8 +75,8 @@ udiss = Um_Diss + Um_ImplD;
 
 qdot = PVtend(udot,bdot,u,b,f0,dz,dy);
 qAdv = PVtend(-Um_Advec,bAdv,u,b,f0,dz,dy);
-qB = PVtend(-udiss,zeros(size(udiss)),u,b,f0,dz,dy);
-qF = PVtend(zeros(size(bDiff)),bDiff,u,b,f0,dz,dy);
+qF = PVtend(-udiss,zeros(size(udiss)),u,b,f0,dz,dy);
+qB = PVtend(zeros(size(bDiff)),bDiff,u,b,f0,dz,dy);
 qtot = PVtend(udot - (Um_Advec + udiss),bdot + bAdv + bDiff,u,b,f0,dz,dy);
 
 %%% Calculate Q and take time derivative
