@@ -1,4 +1,43 @@
- 
+%%% Calculating PV tendency using MITgcm model diagnostics
+
+%%% need u,b and udot, bdot (dot = tendency).
+%%% Um_Diss - U momentum tendency from Dissipation (Explicit part)
+%%% Um_Impl - U momentum tendency from Dissipation (Implicit part)
+%%% Um_Advec - U momentum tendency from Advection terms
+%%% Um_Cori - U momentum tendency from Coriolis term
+%%% Um_dPhiX - U momentum tendency from Pressure/Potential grad
+%%% USidDrag - U momentum tendency from Side Drag
+%%% ADVx_TH - Zonal Advective Flux of Pot.Temperature
+%%% DFxE_TH - Zonal Diffusive Flux of Pot.Temperature
+%%% ADVx_SLT - Zonal Advective Flux of Salinity
+%%% DFxE_SLT - Zonal Diffusive Flux of Salinity
+%%% TOTUTEND - Tendency of Zonal Component of Velocity
+%%% TOTTTEND - Tendency of Potential Temperature
+%%% TOTSTEND - Tendency of Salinity
+
+addpath /Users/Kayliec23/Desktop/analysis
+addpath /Users/Kayliec23/Desktop/MISSI/
+
+% Constants
+Nx = length(delX);
+Ny = length(delY);
+Nr = length(delR);
+Nt = size(T,4);
+dy = delY(1);
+dx = delX(1);
+dz = delR(1);
+Omega = 2*pi*366/365/86400;
+lat0 = -80; %%% Latitude at southern boundary
+f0 = 2*Omega*sind(lat0); %%% Coriolis parameter
+m1km = 1000;
+g = 9.81;
+rho0 = 1027;
+t1min = 60;
+t1hour = 60*t1min;
+t1day = 24*t1hour;
+dt = t1day;
+[YY,ZZ] = meshgrid(yy,zz);
+  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
