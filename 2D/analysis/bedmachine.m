@@ -1,8 +1,8 @@
 clear all;
 
-addpath /Users/kalyliec23/Desktop/MISSI/BedMachine
-addpath /Users/kalyliec23/Desktop/MISSI/BedMachine/github_repo-2
-addpath /Users/kalyliec23/Desktop/MISSI/BedMachine/github_repo-3
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine/github_repo-2
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine/github_repo-3
 load('full_info.mat')
 
 
@@ -23,7 +23,7 @@ yy = linspace(0,dy*(Ny-1),Ny);
 g = 9.8;
 gamma = 2.5e-5;
 ff = -1.4e-4;
-Hpyc = 15;
+Hpyc = 10;
 m1km = 1000;
 
 %%% first derivative - slope
@@ -44,7 +44,7 @@ s = sqrt(s_x.^2 + s_y.^2);
 
 
 %dtheta_c = ff^2/g/gamma./(s.^2/Hml + ds);
-dtheta_c = 4*(ff^2*Hpyc) ./ (g*gamma*s.^2);
+dtheta_c = (ff^2*Hpyc) ./ (g*gamma*s.^2);
 
 
 % ds_min = NaN(Nx,Ny);
@@ -97,10 +97,17 @@ sgtitle('\theta (^oC)','fontsize',36)
 
 %%
 %%% make plot for paper
+
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine/github_repo-2
+addpath /Users/kalyliec23/Desktop/Research/MISSI/BedMachine/github_repo-3
+load('full_info.mat')
+
+
 g = 9.8;
 gamma = 2.5e-5;
 ff = -1.4e-4;
-Hpyc = 5;
+Hpyc = 10;
 m1km = 1000;
 
 %%% masks
@@ -146,7 +153,7 @@ for i = 1:length(amundsen_shelves)
     s_y(:,1:Ny-1) = (df(:,2:Ny)-df(:,1:Ny-1))./dy; %s_y(:,1:Ny-1) = (df(:,2:Ny)+df(:,1:Ny-1))/2; s_y(:,Ny) = 2*s_y(:,Ny-1) - s_y(:,Ny-2);
     s = sqrt(s_x.^2 + s_y.^2);
 
-    dtheta_c = 4*(ff^2*Hpyc) ./ (g*gamma*s.^2);
+    dtheta_c = (ff^2*Hpyc) ./ (g*gamma*s.^2);
     dtheta_c_plot = dtheta_c;
     dtheta_c_plot(dtheta_c_plot>8) = 10;
     dtheta_smooth = smoothdata2(dtheta_c_plot,'movmean',5,'omitnan');
@@ -167,7 +174,7 @@ ylabel('Lon')
 
 
 end
-xticks(ax1,[-75,-74]);
+xticks(ax1,[-75,-74.1]);
 xticklabels(ax1,{'-75','-74'});
 yticks(ax1,[-110,-105,-100]);
 yticklabels(ax1,{'-110','-105','-100'});
@@ -247,7 +254,7 @@ for i = 1:length(Ronne_shelves)
     s_y(:,1:Ny-1) = (df(:,2:Ny)-df(:,1:Ny-1))./dy; %s_y(:,1:Ny-1) = (df(:,2:Ny)+df(:,1:Ny-1))/2; s_y(:,Ny) = 2*s_y(:,Ny-1) - s_y(:,Ny-2);
     s = sqrt(s_x.^2 + s_y.^2);
 
-    dtheta_c = 4*(ff^2*Hpyc) ./ (g*gamma*s.^2);
+    dtheta_c = (ff^2*Hpyc) ./ (g*gamma*s.^2);
     dtheta_c_plot = dtheta_c;
     dtheta_c_plot(dtheta_c_plot>8) = 10;
     dtheta_smooth = smoothdata2(dtheta_c_plot,'movmean',5,'omitnan');
@@ -272,6 +279,7 @@ xticklabels(ax1,{'-82','-79','-76'});
 yticks(ax1,[-80,-60,-40]);
 yticklabels(ax1,{'-80','-60','-40'});
 
+colorbar('box','on','linewidth',2,'location','northoutside','position',[0.11 0.95 0.675 0.02])
 set(gca,'color',[0.95 0.95 0.95]);
 
 % %%% create masks
@@ -334,7 +342,7 @@ for i = 1:length(Larsen_shelves)
     s_y(:,1:Ny-1) = (df(:,2:Ny)-df(:,1:Ny-1))./dy; %s_y(:,1:Ny-1) = (df(:,2:Ny)+df(:,1:Ny-1))/2; s_y(:,Ny) = 2*s_y(:,Ny-1) - s_y(:,Ny-2);
     s = sqrt(s_x.^2 + s_y.^2);
 
-    dtheta_c = 4*(ff^2*Hpyc) ./ (g*gamma*s.^2);
+    dtheta_c = (ff^2*Hpyc) ./ (g*gamma*s.^2);
     dtheta_c_plot = dtheta_c;
     dtheta_c_plot(dtheta_c_plot>8) = 10;
     dtheta_smooth = smoothdata2(dtheta_c_plot,'movmean',5,'omitnan');
@@ -430,7 +438,7 @@ for i = 1:length(Ross_shelves)
     s_y(:,1:Ny-1) = (df(:,2:Ny)-df(:,1:Ny-1))./dy; %s_y(:,1:Ny-1) = (df(:,2:Ny)+df(:,1:Ny-1))/2; s_y(:,Ny) = 2*s_y(:,Ny-1) - s_y(:,Ny-2);
     s = sqrt(s_x.^2 + s_y.^2);
 
-    dtheta_c = 4*(ff^2*Hpyc) ./ (g*gamma*s.^2);
+    dtheta_c = (ff^2*Hpyc) ./ (g*gamma*s.^2);
     dtheta_c_plot = dtheta_c;
     dtheta_c_plot(dtheta_c_plot>8) = 10;
     dtheta_smooth = smoothdata2(dtheta_c_plot,'movmean',5,'omitnan');
@@ -454,9 +462,9 @@ for i = 1:length(Ross_shelves)
 
 end
 xticks(ax1,[-200, -180, -160]);
-xticklabels(ax1,{'160','-180','-160'});
+xticklabels(ax1,{'-200','-180','-160'});
 yticks(ax1,[-86, -82, -78]);
-yticklabels(ax1,{'86','-82','-78'});
+yticklabels(ax1,{'-86','-82','-78'});
 set(gca,'color',[0.95 0.95 0.95]);
 
 % %%% add masks
@@ -498,7 +506,6 @@ ax3 = axes('position',[0.52801    0.0932    0.2986    0.3613]);
 hold on;
 colormap(ax3,[0 0.3 1])
 p = pcolor(ax3,Lon_mask,Lat_mask,ocean_mask); shading interp;
-shading interp;
 alpha(p,0.3)
 set(ax3, 'XDir','reverse')
 set(ax3, 'YDir','reverse')
@@ -517,6 +524,7 @@ ax2.Box = 'off';
 ax2.LineWidth = 2;
 ax2.Box = 'off';
 ax2.LineWidth = 2;
+
 
 
 
