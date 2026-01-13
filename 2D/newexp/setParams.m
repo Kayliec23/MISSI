@@ -7,11 +7,11 @@
 function nTimeSteps = setParams (inputpath,codepath,listterm,Nx,Ny,Nr)  
 
   %%% Load EOS utilities
-  addpath /data3/kayliec23/MITgcm_IP/GSW;
-  addpath /data3/kayliec23/MITgcm_IP/GSW/html;
-  addpath /data3/kayliec23/MITgcm_IP/GSW/library;
-  addpath /data3/kayliec23/MITgcm_IP/GSW/pdf;
-  addpath /data3/kayliec23/MITgcm_IP/utils/matlab
+  addpath /data/data3/kayliec23/MITgcm_IP/GSW;
+  addpath /data/data3/kayliec23/MITgcm_IP/GSW/html;
+  addpath /data/data3/kayliec23/MITgcm_IP/GSW/library;
+  addpath /data/data3/kayliec23/MITgcm_IP/GSW/pdf;
+  addpath /data/data3/kayliec23/MITgcm_IP/utils/matlab
   
   %%% set EOS type (linear, jmd95z, mjdwf)
   eos = 'JMD95Z';
@@ -83,7 +83,7 @@ function nTimeSteps = setParams (inputpath,codepath,listterm,Nx,Ny,Nr)
   else
     Lx = 1*m1km; %%% Domain size in x 
   end
-  simTime = (Ly-Lsponge)/m1km*1.5*t1day;
+  simTime = (Ly-Lsponge)/m1km*0.75*t1day;
   H = 550; %%% Domain size in z 
   g = 9.81; %%% Gravity
   Omega = 2*pi*366/365/86400;  
@@ -94,7 +94,7 @@ function nTimeSteps = setParams (inputpath,codepath,listterm,Nx,Ny,Nr)
   
   %%% Diffusion parameters
   viscAh = 0; %%% 
-  viscA4 = 3e-4*(Ly/Ny)^4; %%% Biharmonic viscosity ------> does this number even make sense? Also, should it be viscA4W since it'gs NH?
+  viscA4 = 3e-4*(Ly/Ny)^4/4; %%% Biharmonic viscosity ------> does this number even make sense? Also, should it be viscA4W since it'gs NH?
   viscAhGrid = 0; %%% Grid-dependent viscosity
 %   viscA4Grid = 0.2; %%% Grid-dependent biharmonic viscosity    
 %   viscC4smag = 0; %%% Smagorinsky biharmonic viscosity
@@ -102,12 +102,15 @@ function nTimeSteps = setParams (inputpath,codepath,listterm,Nx,Ny,Nr)
   viscA4Grid = 0; %%% Grid-dependent biharmonic viscosity -------> Should I be using this instead of viscA4? I don't quite understand the difference between them, I thought biharmonic viscosity is grid dependent    
   viscC4smag = 0; %%% Smagorinsky biharmonic viscosity
   diffK4Tgrid = 0; %%% Grid-dependent biharmonic diffusivity
-  viscAr = 1.67e-4; %%% Vertical viscosity
+  viscAr = 1e-5; %%% Vertical viscosity
+  Pr = 5; % Prandtl number 
   diffKhT = 0; %%% Horizontal temp diffusion
-  diffKrT = 0; %%% Vertical temp diffusion
+  diffK4T = viscA4/Pr;
+  diffKrT = viscAr/Pr; %%% Vertical temp diffusion
   diffKhS = 0; %%% Horizontal salt diffusion
-  diffKrS = 0; %%% Vertical salt diffusion
-  
+  diffK4S = diffK4T;
+  diffKrS = diffKrT; %%% Vertical salt diffusion
+
   %%% Parameters related to periodic forcing
   periodicExternalForcing = false;
   externForcingCycle = 2*simTime;  
@@ -149,8 +152,10 @@ function nTimeSteps = setParams (inputpath,codepath,listterm,Nx,Ny,Nr)
   %%% diffusivity
   parm01.addParm('diffKrT',diffKrT,PARM_REAL);
   parm01.addParm('diffKhT',diffKhT,PARM_REAL); 
+  parm01.addParm('diffK4T',diffK4T,PARM_REAL);
   parm01.addParm('diffKrS',diffKrS,PARM_REAL);
   parm01.addParm('diffKhS',diffKhS,PARM_REAL); 
+  parm01.addParm('diffK4S',diffK4S,PARM_REAL);
   %%% advection schemes
   parm01.addParm('tempAdvScheme',77,PARM_INT);
   parm01.addParm('saltAdvScheme',77,PARM_INT);
@@ -582,12 +587,14 @@ yy = 0.5*(yy_s(1:end-1)+yy_s(2:end));
   %%% Time step constraint based on biharmonic viscosity 
   deltaT_A4 = 0.5*min([dx dy])^4/(32*viscA4);
   %%% Time step constraint based on horizontal diffusion of temp 
-  deltaT_KhT = 0.4*min([dx dy])^2/(4*diffKhT);    
+  deltaT_KhT = 0.5*min([dx dy])^2/(4*diffKhT);
+  %%% Time step constraint based on biharmonic horizontal diffusion of temp
+  deltaT_K4T = 0.5*min([dx dy])^4/(32*diffK4T);  
   %%% Time step constraint based on vertical diffusion of temp 
-  deltaT_KrT = 0.4*min(dz)^2 / (4*diffKrT);
+  deltaT_KrT = 0.5*min(dz)^2 / (4*diffKrT);
   
   %%% Time step size  
-  deltaT = min([deltaT_fgw deltaT_gw deltaT_adv deltaT_itl deltaT_Ah deltaT_Ar deltaT_KhT deltaT_KrT deltaT_A4]);
+  deltaT = min([deltaT_fgw deltaT_gw deltaT_adv deltaT_itl deltaT_Ah deltaT_Ar deltaT_KhT deltaT_K4T deltaT_KrT deltaT_A4]);
   if (nonHydrostatic)
     deltaT = min([deltaT deltaT_vadv]);
   end
