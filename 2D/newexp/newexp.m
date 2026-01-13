@@ -20,7 +20,7 @@
 %%%
 function newexp (batch_name,exp_name)
 
-  addpath /data3/kayliec23/MITgcm_IP/newexp_utils/
+  addpath /data/data3/kayliec23/MITgcm_IP/newexp_utils/
 
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -30,7 +30,7 @@ function newexp (batch_name,exp_name)
   
   
   %%% Local directory in which to create experiments
-  runsdir = '/data3/kayliec23/MITgcm_IP/experiments/';
+  runsdir = '/Users/kalyliec23/Desktop/Research/MISSI/experiments/Test';
   %cd(runsdir); cd ../..
   
   %%% Experiment subdirectories 
@@ -75,11 +75,11 @@ function newexp (batch_name,exp_name)
    use_mpi = true; %%% set true for parallel processing
    use_pbs = true; %%% set true for execution via PBS
    cluster = 'ardbeg';
-   queue = 'Run.q';
+   queue = 'Run';
    sNx = 1; %80;     %%% no. of x-gridpoints per tile
-   sNy = 70;      %%% no. of y-gridpoints per tile
+   sNy = 112;      %%% no. of y-gridpoints per tile
    nPx = 1; %5;     %%% no. of processors in x-direction
-   nPy = 6;     %%% no. of processors in y-direction
+   nPy = 15;     %%% no. of processors in y-direction
    Nr = 550;    %%% no. of z-gridpoints  
   
   %%% Set-up for Gordon
@@ -165,9 +165,9 @@ function newexp (batch_name,exp_name)
     case 'ardbeg' 
   
       username = 'kayliec23';
-      clustername = 'caolila.atmos.ucla.edu';
-      toolsdir = '/data3/kayliec23/MITgcm_IP/tools/';
-      clusterdir = fullfile('/data3/kayliec23/MITgcm_IP/experiments/',batch_name);      
+      clustername = 'lagavulin.atmos.ucla.edu';
+      toolsdir = '/data/data3/kayliec23/MITgcm_IP/tools/';
+      clusterdir = fullfile('/data/data3/kayliec23/MITgcm_IP/experiments/',batch_name);      
   
     case 'hoffman2'
      
@@ -351,8 +351,8 @@ function newexp (batch_name,exp_name)
          createPBSfile_Hoffman(resultspath,exp_name,nodes);
          runcommands = [runcommands,'qsub run_mitgcm > output.txt',lf];  
       otherwise %%% Defaults to Ardbeg
-        createPBSfile(resultspath,exp_name,nodes,queue);
-        runcommands = [runcommands,'qsub run_mitgcm > output.txt',lf];
+        createSLURMfile(resultspath,exp_name,nodes,queue);
+        runcommands = [runcommands,'sbatch run_mitgcm > output.txt',lf];
     end    
   else
     if (use_mpi)
